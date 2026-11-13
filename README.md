@@ -30,7 +30,7 @@ Then open http://localhost:4719.
 - Recitation: Mishary Rashid Alafasy, verse audio from [Quran.com](https://quran.com) (`verses.quran.com`), with word timings from the Quran.com API.
 - Single words (tap a word): Quran.com word audio (`audio.qurancdn.com/wbw`).
 
-Translations and reflections in `data/fatiha.js` are plain-English renderings written for learners.
+The English translations in `data/fatiha.js` are plain-English renderings written for learners.
 
 ## Scenes
 

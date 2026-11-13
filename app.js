@@ -338,7 +338,7 @@
     panel.append(arabic, now, buildDivider(), element("p", "ayah__translation", ayah.translation));
 
     if (ayah.number === 1) inner.append(buildSurahHeader());
-    inner.append(meta, panel, element("p", "ayah__reflection", ayah.reflection));
+    inner.append(meta, panel);
     section.append(inner);
     return { section, inner, now, count };
   }
