@@ -991,6 +991,160 @@ button:focus-visible, .journey:focus-visible, input:focus-visible { outline: 2px
   .divider { margin: 0 0 6px; }
 }
 
+/* ---------- Paper pass: matte pigment on textured paper instead of glossy digital light ---------- */
+:root {
+  --gold: #e3cb98;
+  --gold-glow: rgba(227, 203, 152, 0.28);
+  --glass: rgba(30, 25, 30, 0.66);
+  --glass-edge: rgba(227, 203, 152, 0.18);
+}
+
+/* The paintings read as pigment on paper: a touch less colour, softer contrast, warmer. */
+.scene__layer img,
+.welcome__scene img {
+  filter: saturate(0.82) contrast(0.93) sepia(0.14);
+}
+
+.paper {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+/* Grey noise in overlay lightens and darkens equally, so it adds texture without dulling the painting. */
+.paper rect { mix-blend-mode: overlay; }
+.paper__grain { opacity: 0.16; }
+.paper__mottle { opacity: 0.08; }
+
+/* Aged-page edges: warm umber rather than cold black. */
+.vignette {
+  background:
+    radial-gradient(70% 38% at 50% 46%, rgba(20, 14, 12, 0.42), transparent),
+    radial-gradient(110% 70% at 50% 48%, transparent 50%, rgba(28, 18, 12, 0.78) 100%),
+    linear-gradient(180deg, rgba(22, 15, 12, 0.6) 0%, transparent 20%, transparent 70%, rgba(22, 15, 12, 0.8) 100%);
+}
+
+/* Fewer light effects: the paintings carry the mood, not the glow. */
+.fx-rays { opacity: 0.32; }
+.fx-sun { mix-blend-mode: soft-light; }
+.fx-lantern, .welcome__lantern { opacity: 0.7; }
+.voice-light { opacity: calc(var(--voice) * 0.2); mix-blend-mode: soft-light; }
+.sweep::before { background: linear-gradient(90deg, rgba(255, 236, 205, 0), rgba(255, 236, 205, 0.08), rgba(255, 236, 205, 0)); }
+.motes { opacity: 0.55; }
+
+/* Gilt ink, not polished metal. */
+.welcome__arabic { text-shadow: 0 2px 24px rgba(20, 14, 12, 0.7); }
+.surah-head__name, .ornament span, .ayah__end, .sheet__arabic, .quiz__word { text-shadow: none; }
+.word.is-spoken { filter: drop-shadow(0 0 6px rgba(227, 203, 152, 0.35)) drop-shadow(0 2px 10px rgba(20, 14, 12, 0.55)); }
+.word.is-spoken::before { opacity: 0.45; }
+.word.is-arrived { filter: drop-shadow(0 2px 10px rgba(20, 14, 12, 0.6)); }
+.panel__corner::before, .panel__corner::after { background: rgba(227, 203, 152, 0.8); box-shadow: none; }
+.rail__fill, .play__ring-fill { box-shadow: none; filter: none; }
+.rail__dot[aria-current="step"]::before { box-shadow: 0 0 0 3px rgba(227, 203, 152, 0.18); }
+
+/* Matte controls: soft card stock rather than frosted glass. */
+.panel {
+  background: linear-gradient(180deg, rgba(26, 20, 22, 0.42), rgba(26, 20, 22, 0.28));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: inset 0 0 0 1px rgba(227, 203, 152, 0.26), inset 0 0 0 6px rgba(227, 203, 152, 0.07);
+}
+.glass-btn, .modes, .dock, .chip, .legend li, .btn--ghost {
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.dock { box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.6); }
+.btn--primary { background: #dcc08a; box-shadow: none; }
+.btn--primary:hover { box-shadow: none; }
+.play { background: rgba(227, 203, 152, 0.12); }
+.sheet, .quiz { background: #1c1719; box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7); }
+
+/* ---------- Layout fixes: fixed zones so nothing overlaps the verse ---------- */
+/*
+ * The top bar, the learn tools and the dock each own a band of the screen. Each verse section pads
+ * itself clear of those bands, and the panel alone is centred in what remains.
+ */
+:root {
+  --zone-top: 84px;
+  --zone-bottom: 128px;
+}
+.screen--room[data-mode="learn"] { --zone-top: 128px; }
+.legend {
+  position: static;
+  margin: 14px 0 0;
+  padding: 0;
+  left: auto;
+  right: auto;
+  bottom: auto;
+}
+.legend li { background: rgba(30, 25, 30, 0.5); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.legend__short { display: none; }
+@media (max-width: 520px) {
+  .legend__full { display: none; }
+  .legend__short { display: inline; }
+}
+[data-mode="learn"] .ayah--long .ayah__arabic { font-size: clamp(1.5rem, 6.2vw, 2.6rem); }
+
+.ayah, .ameen {
+  padding: var(--zone-top) 24px var(--zone-bottom);
+  transition: padding 0.5s var(--ease-soft);
+}
+.ayah__inner { position: relative; }
+/* The reflection hangs beneath the panel, so the panel itself stays centred whether it shows or not. */
+.ayah__reflection {
+  position: absolute;
+  top: calc(100% + 16px);
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+}
+.panel { padding: 12px 18px 20px; }
+.ayah__meta { margin-bottom: 10px; }
+.surah-head { margin-bottom: 10px; }
+
+/* Learn mode: the gloss sits clearly below its word, never across the letters' tails. */
+/* Amiri's descenders run deep, so learn mode gives each word a taller line box before its gloss. */
+[data-mode="learn"] .ayah__arabic { line-height: 1.95; row-gap: 4px; }
+/* Only the visible version of each word becomes a block, so plain and tajweed never show together. */
+[data-mode="learn"][data-tajweed="off"] .word > .word__ar,
+[data-mode="learn"][data-tajweed="on"] .word > .word__tj { display: block; }
+[data-mode="learn"] .ayah--long .ayah__arabic { font-size: clamp(1.5rem, 6.2vw, 2.6rem); }
+[data-mode="learn"] .word__gloss {
+  margin-top: 0.55em;
+  padding-bottom: 4px;
+  font-size: 0.86rem;
+  line-height: 1.15;
+  max-width: 9em;
+  white-space: normal;
+}
+[data-mode="learn"] .word { padding: 0 0.12em; }
+.learnbar { top: 70px; }
+.learnbar__tip { display: none; }
+@media (min-width: 720px) {
+  .learnbar__tip { display: block; }
+  .screen--room[data-mode="learn"] { --zone-top: 150px; }
+}
+
+/* The closing screen: actions stacked at one width. */
+.ameen__actions { flex-direction: column; align-items: stretch; width: min(280px, 100%); }
+.ameen__actions .btn { width: 100%; }
+.ameen__actions .btn--primary { order: -1; }
+
+/* Paper reads clean: no extra shade stacked behind the panel. */
+.vignette {
+  background:
+    radial-gradient(115% 72% at 50% 48%, transparent 52%, rgba(28, 18, 12, 0.72) 100%),
+    linear-gradient(180deg, rgba(22, 15, 12, 0.55) 0%, transparent 18%, transparent 74%, rgba(22, 15, 12, 0.72) 100%);
+}
+.vignette::after { opacity: calc(var(--dawn, 0) * 0.6); }
+
+@media (max-width: 360px) {
+  .ayah, .ameen { padding-left: 16px; padding-right: 16px; }
+  .panel { padding: 10px 12px 16px; }
+}
+
 /* ---------- Every device: notches, small phones, landscape, tablets, desktops ---------- */
 .topbar { padding-top: max(18px, env(safe-area-inset-top)); padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
 .dock { bottom: calc(24px + env(safe-area-inset-bottom)); }

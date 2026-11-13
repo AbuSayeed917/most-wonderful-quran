@@ -78,7 +78,7 @@ window.SURAH_FATIHA = {
     {
       number: 6,
       timings: [[30, 670], [680, 1630], [1640, 5120]],
-      tajweed: [[["ٱهۡدِنَا", null]], [["ٱ", "ham_wasl"], ["ل", "laam_shamsiyah"], ["صِّر", null], ["<rule class=custom-alef-maksora>ٰ", "madda_normal"], ["/rule>طَ", null]], [["ٱ", "ham_wasl"], ["لۡمُسۡتَق", null], ["ِي", "madda_permissible"], ["مَ", null]]],
+      tajweed: [[["ٱهۡدِنَا", null]], [["ٱ", "ham_wasl"], ["ل", "laam_shamsiyah"], ["صِّر", null], ["ٰ", "madda_normal"], ["طَ", null]], [["ٱ", "ham_wasl"], ["لۡمُسۡتَق", null], ["ِي", "madda_permissible"], ["مَ", null]]],
       translation: "Guide us to the straight path.",
       reflection: "The one request of the surah. Of everything we could ask for, we ask for guidance.",
       words: [
@@ -90,7 +90,7 @@ window.SURAH_FATIHA = {
     {
       number: 7,
       timings: [[30, 740], [750, 1700], [1710, 2620], [2630, 3590], [3600, 4210], [4220, 5290], [5300, 6320], [6330, 6630], [6640, 12320]],
-      tajweed: [[["صِر", null], ["<rule class=custom-alef-maksora>ٰ", "madda_normal"], ["/rule>طَ", null]], [["ٱ", "ham_wasl"], ["لَّذِينَ", null]], [["أَنۡعَمۡتَ", null]], [["عَلَيۡهِمۡ", null]], [["غَيۡرِ", null]], [["ٱ", "ham_wasl"], ["لۡمَغۡضُوبِ", null]], [["عَلَيۡهِمۡ", null]], [["وَلَا", null]], [["ٱ", "ham_wasl"], ["ل", "laam_shamsiyah"], ["ضّ", null], ["َا", "madda_necessary"], ["ٓلّ", null], ["ِي", "madda_permissible"], ["نَ", null]]],
+      tajweed: [[["صِر", null], ["ٰ", "madda_normal"], ["طَ", null]], [["ٱ", "ham_wasl"], ["لَّذِينَ", null]], [["أَنۡعَمۡتَ", null]], [["عَلَيۡهِمۡ", null]], [["غَيۡرِ", null]], [["ٱ", "ham_wasl"], ["لۡمَغۡضُوبِ", null]], [["عَلَيۡهِمۡ", null]], [["وَلَا", null]], [["ٱ", "ham_wasl"], ["ل", "laam_shamsiyah"], ["ضّ", null], ["َا", "madda_necessary"], ["ٓلّ", null], ["ِي", "madda_permissible"], ["نَ", null]]],
       translation: "The path of those You have blessed, not of those who earned anger, nor of those who went astray.",
       reflection: "A path is known by the people who walked it. We ask to walk with the blessed.",
       words: [

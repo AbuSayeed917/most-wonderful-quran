@@ -12,6 +12,11 @@
   if (!hasCompleteWordData) {
     throw new Error("Surah data is incomplete: every ayah needs timings and tajweed for each word.");
   }
+  // Quranic text must never show stray markup: refuse to render if any tajweed piece still carries a tag.
+  const leakedMarkup = surah.ayahs.flatMap((ayah) => ayah.tajweed.flat()).find(([text]) => /[<>]/.test(text));
+  if (leakedMarkup) {
+    throw new Error(`Tajweed data contains markup in the text: "${leakedMarkup[0]}". Re-import the tajweed data.`);
+  }
   const sound = window.Soundscape;
   if (!sound) throw new Error("Soundscape failed to load: expected window.Soundscape from sound.js.");
 
@@ -48,11 +53,11 @@
   };
 
   const TAJWEED_RULES = [
-    { id: "ham_wasl", name: "Hamzat al-waṣl · silent when joined", colour: "var(--tj-silent)" },
-    { id: "laam_shamsiyah", name: "Lām shamsiyyah · silent lām", colour: "var(--tj-silent)" },
-    { id: "madda_normal", name: "Natural madd · 2 counts", colour: "var(--tj-madd-natural)" },
-    { id: "madda_permissible", name: "Permissible madd · 2, 4 or 6", colour: "var(--tj-madd-permissible)" },
-    { id: "madda_necessary", name: "Necessary madd · 6 counts", colour: "var(--tj-madd-necessary)" }
+    { id: "ham_wasl", name: "Hamzat al-waṣl · silent when joined", short: "Silent hamza", colour: "var(--tj-silent)" },
+    { id: "laam_shamsiyah", name: "Lām shamsiyyah · silent lām", short: "Silent lām", colour: "var(--tj-silent)" },
+    { id: "madda_normal", name: "Natural madd · 2 counts", short: "Madd · 2", colour: "var(--tj-madd-natural)" },
+    { id: "madda_permissible", name: "Permissible madd · 2, 4 or 6", short: "Madd · 2–6", colour: "var(--tj-madd-permissible)" },
+    { id: "madda_necessary", name: "Necessary madd · 6 counts", short: "Madd · 6", colour: "var(--tj-madd-necessary)" }
   ];
 
   const $ = (selector) => document.querySelector(selector);
@@ -252,9 +257,15 @@
 
   /* ---------- Building the journey ---------- */
 
+  // Quran.com's tajweed markup carries a kashida (U+0640) and an alef with wavy hamza (U+0672) where the
+  // plain Uthmani text has a dagger alif. Both are shaping choices, not letters, so render the standard form.
+  const normaliseTajweedText = (text) => text.replace(/ـ/g, "").replace(/ٲ/g, "ٰ");
+
   function buildTajweedWord(pieces) {
     const span = element("span", "word__tj");
-    span.append(...pieces.map(([text, rule]) => element("span", rule ? `tj tj--${rule}` : "tj", text)));
+    span.append(...pieces.map(([text, rule]) =>
+      element("span", rule ? `tj tj--${rule}` : "tj", normaliseTajweedText(text))
+    ));
     return span;
   }
 
@@ -397,7 +408,8 @@
       item.dataset.rule = rule.id;
       const swatch = element("i");
       swatch.style.background = rule.colour;
-      item.append(swatch, element("span", "", rule.name));
+      item.title = rule.name;
+      item.append(swatch, element("span", "legend__full", rule.name), element("span", "legend__short", rule.short));
       return item;
     });
     ui.legend.replaceChildren(...dom.legendItems);
@@ -406,6 +418,8 @@
   function updateLegend() {
     const present = new Set(surah.ayahs[state.ayahIndex].tajweed.flat().map(([, rule]) => rule).filter(Boolean));
     dom.legendItems.forEach((item) => item.classList.toggle("is-present", present.has(item.dataset.rule)));
+    // The guide lives inside the current verse's panel, in normal flow, so it can never overlap the text.
+    dom.stops[state.ayahIndex].querySelector(".panel").append(ui.legend);
   }
 
   /* ---------- Sizing: one verse per real screen height, on every device ---------- */
