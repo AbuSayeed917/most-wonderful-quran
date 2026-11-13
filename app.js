@@ -5,63 +5,100 @@
   if (!surah || !Array.isArray(surah.ayahs) || surah.ayahs.length === 0) {
     throw new Error("Surah data failed to load: expected window.SURAH_FATIHA with ayahs.");
   }
-  if (surah.ayahs.some((ayah) => !Array.isArray(ayah.timings) || ayah.timings.length !== ayah.words.length)) {
-    throw new Error("Surah data is missing word timings: every ayah needs one [start, end] per word.");
+  const hasCompleteWordData = surah.ayahs.every((ayah) =>
+    Array.isArray(ayah.timings) && ayah.timings.length === ayah.words.length &&
+    Array.isArray(ayah.tajweed) && ayah.tajweed.length === ayah.words.length
+  );
+  if (!hasCompleteWordData) {
+    throw new Error("Surah data is incomplete: every ayah needs timings and tajweed for each word.");
   }
   const sound = window.Soundscape;
   if (!sound) throw new Error("Soundscape failed to load: expected window.Soundscape from sound.js.");
 
   const LAST_AYAH = surah.ayahs.length - 1;
   const LAST_STOP = surah.ayahs.length; // the closing "Ameen" screen sits after the last ayah
-  const GLIDE_MS = 1050;
+  const GLIDE_MS = 1150;
+  const IMMERSE_AFTER_MS = 3200;
   const WHEEL_THRESHOLD = 6;
   const SWIPE_THRESHOLD = 36;
   const WHEEL_SETTLE_MS = 200;
+  const LONG_PRESS_MS = 480;
   const FIRST_WORD_DELAY_MS = 260;
   const WORD_ARRIVAL_MS = 110;
   const GLINT_MS = 420;
   const VERSE_GAP_MS = 380;
+  const REPEAT_GAP_MS = 700;
+  const REPEAT_COUNT = 3;
+  const VOICE_FADE_OUT_MS = 380;
   const NOW_FADE_MS = 140;
+  const QUIZ_LENGTH = 5;
+  const QUIZ_NEXT_MS = 1500;
   const RING_LENGTH = 188.5;
   const ARABIC_DIGITS = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
   const isReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const hasFinePointer = window.matchMedia("(pointer: fine)").matches;
 
-  // Each painting gets the living details that match what is drawn in it.
+  // Each painting gets the living details that match what is drawn in it, on the layer they belong to.
   const SCENE_EFFECTS = {
-    1: ["stars", "lantern"],
-    2: ["stars", "water"],
-    5: ["rays"],
-    6: ["rays", "path"],
-    7: ["rays", "sun"]
+    1: { sky: ["stars"], ground: ["lantern"] },
+    2: { sky: ["stars"], ground: ["water"] },
+    5: { sky: ["rays"], ground: [] },
+    6: { sky: ["rays"], ground: ["path"] },
+    7: { sky: ["rays", "sun"], ground: [] }
   };
+
+  const TAJWEED_RULES = [
+    { id: "ham_wasl", name: "Hamzat al-waṣl · silent when joined", colour: "var(--tj-silent)" },
+    { id: "laam_shamsiyah", name: "Lām shamsiyyah · silent lām", colour: "var(--tj-silent)" },
+    { id: "madda_normal", name: "Natural madd · 2 counts", colour: "var(--tj-madd-natural)" },
+    { id: "madda_permissible", name: "Permissible madd · 2, 4 or 6", colour: "var(--tj-madd-permissible)" },
+    { id: "madda_necessary", name: "Necessary madd · 6 counts", colour: "var(--tj-madd-necessary)" }
+  ];
 
   const $ = (selector) => document.querySelector(selector);
   const ui = {
+    root: document.documentElement,
     screens: document.querySelectorAll("[data-screen]"),
     room: $('[data-screen="room"]'),
     journey: $(".journey"),
     scenes: $(".scenes"),
+    voiceLight: $(".voice-light"),
+    sweep: $(".sweep"),
     rail: $(".rail"),
     railFill: $(".rail__fill"),
     cue: $(".cue"),
     status: $(".status"),
+    legend: $(".legend"),
     play: $('[data-action="play"]'),
     ring: $(".play__ring-fill"),
-    soundToggle: $('[data-action="sound"]'),
+    repeat: $('[data-action="repeat"]'),
+    tajweedToggle: $('[data-action="tajweed"]'),
+    soundMenu: $('[data-action="soundmenu"]'),
+    soundPanel: $(".sound-panel"),
+    haptics: $('[data-action="haptics"]'),
     wordVoice: $(".word-voice"),
     sheet: $(".sheet"),
     sheetArabic: $(".sheet__arabic"),
     sheetTranslit: $(".sheet__translit"),
     sheetMeaning: $(".sheet__meaning"),
     sheetRoot: $(".sheet__root"),
-    sheetPlace: $(".sheet__place")
+    sheetPlace: $(".sheet__place"),
+    family: $(".family"),
+    familyList: $(".family__list"),
+    quiz: $(".quiz"),
+    quizProgress: $(".quiz__progress"),
+    quizWord: $(".quiz__word"),
+    quizOptions: $(".quiz__options"),
+    quizFeedback: $(".quiz__feedback"),
+    quizScore: $(".quiz__score")
   };
 
-  const dom = { track: null, stops: [], inners: [], nows: [], sceneFrames: [], railDots: [] };
+  const dom = { track: null, stops: [], inners: [], nows: [], counts: [], sceneFrames: [], railDots: [], legendItems: [] };
 
   // One audio element per verse so the next verse can buffer while this one plays.
   const verseClips = surah.ayahs.map((ayah) => {
     const clip = new Audio();
+    clip.crossOrigin = "anonymous"; // lets the Web Audio graph read the voice level
     clip.preload = "none";
     clip.src = `https://verses.quran.com/Alafasy/mp3/${pad3(surah.number)}${pad3(ayah.number)}.mp3`;
     return clip;
@@ -74,12 +111,16 @@
     isGliding: false,
     wheelQuietUntil: 0,
     mode: "listen",
+    isTajweedOn: false,
+    isRepeatOn: false,
+    isHapticsOn: true,
     isPlaying: false,
     playbackId: 0,
     arrival: Promise.resolve(true),
     arrivalId: 0,
     spokenIndex: null,
-    sheetWordIndex: null
+    sheetWord: null,
+    quiz: null
   };
 
   /* ---------- Pure helpers ---------- */
@@ -90,7 +131,12 @@
   const wordAudioUrl = (ayah, wordNumber) =>
     `https://audio.qurancdn.com/wbw/${pad3(surah.number)}_${pad3(ayah)}_${pad3(wordNumber)}.mp3`;
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  // A sine ease leaves and lands more gently than a cubic one: the glide feels like an exhale.
+  const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
+  const shuffle = (items) => items
+    .map((item) => ({ item, key: Math.random() }))
+    .sort((a, b) => a.key - b.key)
+    .map(({ item }) => item);
 
   function findSpokenWord(timings, ms) {
     const index = timings.findIndex(([start, end]) => ms >= start && ms < end);
@@ -100,14 +146,52 @@
     return before >= 0 ? before : null;
   }
 
-  /* ---------- Building the journey ---------- */
+  function wordFill(timing, ms) {
+    const [start, end] = timing;
+    return clamp((ms - start) / Math.max(1, end - start), 0, 1);
+  }
+
+  const allWords = surah.ayahs.flatMap((ayah) =>
+    ayah.words.map((word, index) => ({ ...word, ayahNumber: ayah.number, wordNumber: index + 1 }))
+  );
+
+  function rootFamily(word) {
+    if (!word.root || word.root === "—") return [];
+    const seen = new Set([word.arabic]);
+    return allWords.filter((other) => {
+      if (other.root !== word.root || seen.has(other.arabic)) return false;
+      seen.add(other.arabic);
+      return true;
+    });
+  }
+
+  /* ---------- Small DOM helpers ---------- */
+
+  function element(tag, className, text) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  function vibrate(ms) {
+    if (!state.isHapticsOn || typeof navigator.vibrate !== "function") return;
+    navigator.vibrate(ms);
+  }
+
+  function retrigger(el, className) {
+    el.classList.remove(className);
+    void el.offsetWidth; // force a reflow so the same animation can play again
+    el.classList.add(className);
+  }
+
+  /* ---------- Building the scenes ---------- */
 
   function createEffect(kind) {
-    const el = document.createElement("div");
-    el.className = `fx fx-${kind}`;
+    const el = element("div", `fx fx-${kind}`);
     if (kind === "stars") {
       for (let i = 0; i < 26; i += 1) {
-        const star = document.createElement("span");
+        const star = element("span");
         const size = 1 + (i % 3);
         // Positions are generated, so they are set inline.
         star.style.left = `${(i * 37) % 100}%`;
@@ -121,7 +205,7 @@
     }
     if (kind === "water") {
       for (let i = 0; i < 7; i += 1) {
-        const ripple = document.createElement("span");
+        const ripple = element("span");
         ripple.style.left = `${(i * 23) % 70}%`;
         ripple.style.top = `${i * 14}%`;
         ripple.style.width = `${16 + (i % 3) * 9}%`;
@@ -131,7 +215,7 @@
     }
     if (kind === "path") {
       for (let i = 0; i < 3; i += 1) {
-        const light = document.createElement("span");
+        const light = element("span");
         light.style.animationDelay = `${i * 1.8}s`;
         el.append(light);
       }
@@ -139,21 +223,26 @@
     return el;
   }
 
+  function createLayer(depth, src, effects) {
+    const layer = element("div", `scene__layer scene__layer--${depth}`);
+    const img = element("img");
+    img.src = src;
+    img.alt = "";
+    img.width = 720;
+    img.height = 1280;
+    img.decoding = "async";
+    layer.append(img, ...effects.map(createEffect));
+    return layer;
+  }
+
   function buildScenes() {
     const frames = surah.ayahs.map((ayah, index) => {
-      const frame = document.createElement("div");
-      frame.className = "scene";
-      const stage = document.createElement("div");
-      stage.className = "scene__stage";
+      const effects = SCENE_EFFECTS[ayah.number] || { sky: [], ground: [] };
+      const src = `images/ayah-${ayah.number}.jpg`;
+      const frame = element("div", "scene");
+      const stage = element("div", "scene__stage");
       stage.style.setProperty("--breathe", `${22 + index * 2}s`);
-      const img = document.createElement("img");
-      img.className = "scene__img";
-      img.src = `images/ayah-${ayah.number}.jpg`;
-      img.alt = "";
-      img.width = 720;
-      img.height = 1280;
-      img.decoding = "async";
-      stage.append(img, ...(SCENE_EFFECTS[ayah.number] || []).map(createEffect));
+      stage.append(createLayer("sky", src, effects.sky), createLayer("ground", src, effects.ground));
       frame.append(stage);
       return frame;
     });
@@ -161,19 +250,31 @@
     dom.sceneFrames = frames;
   }
 
-  function element(tag, className, text) {
-    const el = document.createElement(tag);
-    if (className) el.className = className;
-    if (text !== undefined) el.textContent = text;
-    return el;
+  /* ---------- Building the journey ---------- */
+
+  function buildTajweedWord(pieces) {
+    const span = element("span", "word__tj");
+    span.append(...pieces.map(([text, rule]) => element("span", rule ? `tj tj--${rule}` : "tj", text)));
+    return span;
   }
 
-  function buildWord(word, index) {
+  function buildWord(word, index, tajweed) {
     const button = element("button", "word");
     button.type = "button";
+    button.dataset.index = String(index);
     button.setAttribute("aria-label", `${word.transliteration}, ${word.meaning}`);
-    button.append(element("span", "", word.arabic), element("span", "word__gloss", word.meaning));
-    button.addEventListener("click", () => handleWordTap(index));
+    button.append(element("span", "word__ar", word.arabic), buildTajweedWord(tajweed), element("span", "word__gloss", word.meaning));
+    button.addEventListener("click", () => {
+      if (button.dataset.longPressed === "true") {
+        delete button.dataset.longPressed;
+        return;
+      }
+      handleWordTap(index);
+    });
+    bindLongPress(button, () => {
+      button.dataset.longPressed = "true";
+      openWordSheet(index);
+    });
     return button;
   }
 
@@ -186,12 +287,13 @@
     const ornament = element("span", "ornament");
     ornament.setAttribute("aria-hidden", "true");
     ornament.append(element("span", "", toArabicNumber(ayah.number)));
-    meta.append(ornament, element("span", "", `Ayah ${ayah.number} of ${surah.ayahs.length}`));
+    const count = element("span", "ayah__count");
+    meta.append(ornament, element("span", "", `Ayah ${ayah.number} of ${surah.ayahs.length}`), count);
 
     const arabic = element("p", "ayah__arabic");
     arabic.lang = "ar";
     arabic.dir = "rtl";
-    arabic.append(...ayah.words.map(buildWord));
+    arabic.append(...ayah.words.map((word, index) => buildWord(word, index, ayah.tajweed[index])));
 
     const now = element("p", "now");
     now.setAttribute("aria-hidden", "true");
@@ -205,7 +307,7 @@
       element("p", "ayah__reflection", ayah.reflection)
     );
     section.append(inner);
-    return { section, inner, now };
+    return { section, inner, now, count };
   }
 
   function buildAmeenSection() {
@@ -222,6 +324,9 @@
       glideTo(0, true);
       startPlayAlong();
     });
+    const test = element("button", "btn btn--ghost", "Test yourself");
+    test.type = "button";
+    test.addEventListener("click", openQuiz);
     const memorise = element("button", "btn btn--primary", "Recite from the heart");
     memorise.type = "button";
     memorise.addEventListener("click", () => {
@@ -229,11 +334,11 @@
       glideTo(0);
     });
     const actions = element("div", "ameen__actions");
-    actions.append(again, memorise);
+    actions.append(again, test, memorise);
 
     inner.append(arabic, element("p", "ameen__line", "The day has opened."), actions);
     section.append(inner);
-    return { section, inner, now: null };
+    return { section, inner, now: null, count: null };
   }
 
   function buildJourney() {
@@ -245,6 +350,7 @@
     dom.stops = built.map((b) => b.section);
     dom.inners = built.map((b) => b.inner);
     dom.nows = built.map((b) => b.now);
+    dom.counts = built.map((b) => b.count);
   }
 
   function buildRail() {
@@ -259,9 +365,35 @@
     ui.rail.append(...dom.railDots);
   }
 
+  function buildLegend() {
+    dom.legendItems = TAJWEED_RULES.map((rule) => {
+      const item = element("li");
+      item.dataset.rule = rule.id;
+      const swatch = element("i");
+      swatch.style.background = rule.colour;
+      item.append(swatch, element("span", "", rule.name));
+      return item;
+    });
+    ui.legend.replaceChildren(...dom.legendItems);
+  }
+
+  function updateLegend() {
+    const present = new Set(surah.ayahs[state.ayahIndex].tajweed.flat().map(([, rule]) => rule).filter(Boolean));
+    dom.legendItems.forEach((item) => item.classList.toggle("is-present", present.has(item.dataset.rule)));
+  }
+
+  /* ---------- Sizing: one verse per real screen height, on every device ---------- */
+
+  function measureStop() {
+    // innerHeight follows the visible area as mobile browser bars show and hide, unlike 100vh.
+    ui.root.style.setProperty("--stop-h", `${window.innerHeight}px`);
+    applyPosition(state.position);
+  }
+
   /* ---------- Rendering one frame of the glide ---------- */
 
   function applyPosition(position) {
+    if (!dom.track) return;
     const height = window.innerHeight;
     const scenePosition = Math.min(position, LAST_AYAH);
 
@@ -271,8 +403,8 @@
       const presence = clamp(1 - Math.abs(scenePosition - index), 0, 1);
       frame.style.opacity = presence.toFixed(4);
       frame.style.visibility = presence === 0 ? "hidden" : "visible";
-      const drift = isReducedMotion ? 0 : (index - scenePosition) * 80;
-      frame.style.transform = `translate3d(0, ${drift.toFixed(2)}px, 0)`;
+      const shift = isReducedMotion ? 0 : (index - scenePosition) * 70;
+      frame.style.setProperty("--shift", shift.toFixed(2));
     });
 
     dom.inners.forEach((inner, index) => {
@@ -293,6 +425,7 @@
     ui.railFill.style.transform = `scaleY(${clamp(position / LAST_AYAH, 0, 1).toFixed(4)})`;
     ui.cue.style.opacity = state.isPlaying ? "0" : clamp(1 - position * 3, 0, 1).toFixed(3);
     sound.setNightLevel(1 - scenePosition / 4);
+    ui.root.style.setProperty("--dawn", clamp((scenePosition - 2) / 4, 0, 1).toFixed(3));
   }
 
   /* ---------- Gliding between verses ---------- */
@@ -315,7 +448,7 @@
     function step(now) {
       if (state.stop !== target) return;
       const progress = clamp((now - startedAt) / duration, 0, 1);
-      state.position = from + (target - from) * easeInOutCubic(progress);
+      state.position = from + (target - from) * easeInOutSine(progress);
       applyPosition(state.position);
       if (progress < 1) {
         requestAnimationFrame(step);
@@ -358,7 +491,45 @@
       if (Math.abs(deltaY) < SWIPE_THRESHOLD) return;
       glideTo(state.stop + Math.sign(deltaY));
     });
-    window.addEventListener("resize", () => applyPosition(state.position));
+    window.addEventListener("resize", measureStop);
+    if (hasFinePointer && !isReducedMotion) bindPointerDepth();
+  }
+
+  // On desktops, the layers lean gently away from the pointer, like looking through a window.
+  function bindPointerDepth() {
+    const target = { x: 0, y: 0 };
+    const current = { x: 0, y: 0 };
+    let isAnimating = false;
+    function ease() {
+      current.x += (target.x - current.x) * 0.06;
+      current.y += (target.y - current.y) * 0.06;
+      ui.scenes.style.setProperty("--tilt-x", current.x.toFixed(4));
+      ui.scenes.style.setProperty("--tilt-y", current.y.toFixed(4));
+      const isSettled = Math.abs(target.x - current.x) < 0.001 && Math.abs(target.y - current.y) < 0.001;
+      if (isSettled) {
+        isAnimating = false;
+        return;
+      }
+      requestAnimationFrame(ease);
+    }
+    window.addEventListener("pointermove", (event) => {
+      target.x = (event.clientX / window.innerWidth) * 2 - 1;
+      target.y = (event.clientY / window.innerHeight) * 2 - 1;
+      if (isAnimating) return;
+      isAnimating = true;
+      requestAnimationFrame(ease);
+    });
+  }
+
+  function bindLongPress(el, onLongPress) {
+    let timer = null;
+    const cancel = () => clearTimeout(timer);
+    el.addEventListener("pointerdown", () => {
+      cancel();
+      timer = setTimeout(onLongPress, LONG_PRESS_MS);
+    });
+    ["pointerup", "pointerleave", "pointercancel"].forEach((type) => el.addEventListener(type, cancel));
+    el.addEventListener("contextmenu", (event) => event.preventDefault());
   }
 
   /* ---------- Words arriving, one soft key at a time ---------- */
@@ -367,10 +538,18 @@
     return Array.from(dom.stops[index].querySelectorAll(".word"));
   }
 
+  function setWordFill(el, fill) {
+    el.querySelector(".word__ar").style.setProperty("--fill", fill.toFixed(3));
+  }
+
   function resetAyah(index) {
     dom.stops[index].classList.remove("is-recited");
-    wordElements(index).forEach((el) => el.classList.remove("is-arrived", "is-glinting", "is-heard", "is-spoken"));
+    wordElements(index).forEach((el) => {
+      el.classList.remove("is-arrived", "is-glinting", "is-heard", "is-spoken");
+      el.querySelector(".word__ar").style.removeProperty("--fill");
+    });
     dom.nows[index].classList.remove("is-showing");
+    dom.counts[index].textContent = "";
   }
 
   async function arriveWords(index) {
@@ -383,6 +562,7 @@
       const word = words[i];
       word.classList.add("is-arrived", "is-glinting");
       sound.tick();
+      vibrate(6);
       setTimeout(() => word.classList.remove("is-glinting"), GLINT_MS);
     }
     return true;
@@ -399,6 +579,8 @@
       dot.setAttribute("aria-current", i === index ? "step" : "false");
       dot.classList.toggle("is-passed", i < index);
     });
+    updateLegend();
+    if (!isReducedMotion) retrigger(ui.sweep, "is-sweeping");
     state.arrival = arriveWords(index);
   }
 
@@ -427,19 +609,44 @@
       el.classList.add("is-arrived");
       el.classList.toggle("is-spoken", index === wordIndex);
       el.classList.toggle("is-heard", wordIndex !== null && index < wordIndex);
+      if (index !== wordIndex) el.querySelector(".word__ar").style.removeProperty("--fill");
     });
     showNow(state.ayahIndex, wordIndex);
+    if (wordIndex === null) return;
+    if (!isReducedMotion) retrigger(ui.voiceLight, "is-pulse");
+    vibrate(8);
   }
 
   function setRing(progress) {
     ui.ring.style.strokeDashoffset = (RING_LENGTH * (1 - clamp(progress, 0, 1))).toFixed(2);
   }
 
+  function setVoiceLevel(level) {
+    ui.root.style.setProperty("--voice", level.toFixed(3));
+  }
+
   function setPlaying(isPlaying) {
     state.isPlaying = isPlaying;
+    ui.room.classList.toggle("is-reciting", isPlaying);
     ui.play.classList.toggle("is-playing", isPlaying);
     ui.play.setAttribute("aria-label", isPlaying ? "Pause" : "Play along with the recitation");
+    if (!isPlaying) setVoiceLevel(0);
+    wakeChrome();
     applyPosition(state.position);
+  }
+
+  /* ---------- Immersion: quiet the controls while reciting ---------- */
+
+  let immerseTimer = null;
+  function wakeChrome() {
+    ui.room.classList.remove("is-immersed");
+    clearTimeout(immerseTimer);
+    if (!state.isPlaying) return;
+    immerseTimer = setTimeout(() => {
+      const isPanelOpen = !ui.soundPanel.hidden;
+      const hasFocusInChrome = document.activeElement && document.activeElement.closest(".topbar, .dock, .learnbar");
+      if (state.isPlaying && !isPanelOpen && !hasFocusInChrome) ui.room.classList.add("is-immersed");
+    }, IMMERSE_AFTER_MS);
   }
 
   function showError(message, error) {
@@ -449,7 +656,12 @@
 
   function stopPlayback() {
     state.playbackId += 1;
-    verseClips.forEach((clip) => clip.pause());
+    verseClips.forEach((clip) => {
+      if (clip.paused) return;
+      // Let the voice fall away softly instead of cutting mid-breath.
+      sound.attachVoice(clip).fadeOut();
+      setTimeout(() => clip.pause(), VOICE_FADE_OUT_MS);
+    });
     ui.wordVoice.pause();
     setPlaying(false);
   }
@@ -458,6 +670,7 @@
   function reciteVerse(index, playbackId) {
     return new Promise((resolve, reject) => {
       const clip = verseClips[index];
+      const voice = sound.attachVoice(clip);
       const timings = surah.ayahs[index].timings;
       const next = verseClips[index + 1];
       if (next) {
@@ -477,7 +690,11 @@
           resolve(false);
           return;
         }
-        highlightWord(findSpokenWord(timings, clip.currentTime * 1000));
+        const ms = clip.currentTime * 1000;
+        const spoken = findSpokenWord(timings, ms);
+        highlightWord(spoken);
+        if (spoken !== null) setWordFill(wordElements()[spoken], wordFill(timings[spoken], ms));
+        setVoiceLevel(voice.level());
         if (clip.duration) setRing((index + clip.currentTime / clip.duration) / surah.ayahs.length);
         frame = requestAnimationFrame(follow);
       };
@@ -488,13 +705,23 @@
       clip.addEventListener("error", onError);
       clip.currentTime = 0;
       clip.play()
-        .then(() => { frame = requestAnimationFrame(follow); })
+        .then(() => {
+          voice.fadeIn();
+          frame = requestAnimationFrame(follow);
+        })
         .catch((error) => { cleanUp(); reject(error); });
     });
   }
 
+  function finishVerse(index) {
+    highlightWord(null);
+    wordElements(index).forEach((el) => el.classList.add("is-heard"));
+    dom.stops[index].classList.add("is-recited");
+  }
+
   async function startPlayAlong() {
     stopPlayback();
+    await sound.resume();
     ui.status.textContent = "";
     const playbackId = state.playbackId;
     setPlaying(true);
@@ -505,13 +732,19 @@
         await state.arrival;
         if (playbackId !== state.playbackId) return;
 
-        const isFinished = await reciteVerse(index, playbackId);
-        if (!isFinished) return;
-        highlightWord(null);
-        wordElements(index).forEach((el) => el.classList.add("is-heard"));
-        dom.stops[index].classList.add("is-recited");
-        await wait(VERSE_GAP_MS);
-        if (playbackId !== state.playbackId) return;
+        const repeats = state.isRepeatOn ? REPEAT_COUNT : 1;
+        for (let round = 1; round <= repeats; round += 1) {
+          dom.counts[index].textContent = repeats > 1 ? `· ${round} of ${repeats}` : "";
+          if (round > 1) {
+            wordElements(index).forEach((el) => el.classList.remove("is-heard"));
+            state.spokenIndex = null;
+          }
+          const isFinished = await reciteVerse(index, playbackId);
+          if (!isFinished) return;
+          finishVerse(index);
+          await wait(round < repeats ? REPEAT_GAP_MS : VERSE_GAP_MS);
+          if (playbackId !== state.playbackId) return;
+        }
       }
       setRing(1);
       glideTo(LAST_STOP, true);
@@ -524,10 +757,17 @@
   }
 
   function replayVerse() {
+    if (state.stop > LAST_AYAH) glideTo(LAST_AYAH, true);
     resetAyah(state.ayahIndex);
     wordElements().forEach((el) => el.classList.add("is-arrived"));
     state.arrival = Promise.resolve(true);
     startPlayAlong();
+  }
+
+  async function playWord(ayahNumber, wordNumber) {
+    ui.wordVoice.src = wordAudioUrl(ayahNumber, wordNumber);
+    await ui.wordVoice.play();
+    await new Promise((resolve) => ui.wordVoice.addEventListener("ended", resolve, { once: true }));
   }
 
   async function playSingleWord(wordIndex) {
@@ -535,33 +775,44 @@
     const playbackId = state.playbackId;
     const ayah = surah.ayahs[state.ayahIndex];
     highlightWord(wordIndex);
+    setWordFill(wordElements()[wordIndex], 1);
     try {
-      ui.wordVoice.src = wordAudioUrl(ayah.number, wordIndex + 1);
-      await ui.wordVoice.play();
-      await new Promise((resolve) => ui.wordVoice.addEventListener("ended", resolve, { once: true }));
+      await playWord(ayah.number, wordIndex + 1);
       if (playbackId === state.playbackId) highlightWord(null);
     } catch (error) {
       if (playbackId === state.playbackId) showError("Word audio failed:", error);
     }
   }
 
-  /* ---------- Interactions ---------- */
+  /* ---------- Word sheet ---------- */
 
   function countOccurrences(arabic) {
-    return surah.ayahs.reduce((count, ayah) => count + ayah.words.filter((w) => w.arabic === arabic).length, 0);
+    return allWords.filter((w) => w.arabic === arabic).length;
   }
 
   function openWordSheet(wordIndex) {
     const ayah = surah.ayahs[state.ayahIndex];
-    const word = ayah.words[wordIndex];
+    const word = { ...ayah.words[wordIndex], ayahNumber: ayah.number, wordNumber: wordIndex + 1 };
     const occurrences = countOccurrences(word.arabic);
-    state.sheetWordIndex = wordIndex;
+    state.sheetWord = word;
     ui.sheetArabic.textContent = word.arabic;
     ui.sheetTranslit.textContent = word.transliteration;
     ui.sheetMeaning.textContent = word.meaning;
     ui.sheetRoot.textContent = word.root;
     ui.sheetPlace.textContent = occurrences > 1 ? `${occurrences} times in Al-Fatiha` : `Verse ${ayah.number}`;
-    ui.sheet.showModal();
+
+    const family = rootFamily(word);
+    ui.family.hidden = family.length === 0;
+    ui.familyList.replaceChildren(...family.map((member) => {
+      const item = element("li");
+      const ar = element("span", "family__ar", member.arabic);
+      ar.lang = "ar";
+      ar.dir = "rtl";
+      item.append(ar, element("span", "family__en", member.meaning));
+      return item;
+    }));
+
+    if (!ui.sheet.open) ui.sheet.showModal();
     playSingleWord(wordIndex);
   }
 
@@ -573,6 +824,78 @@
     if (state.mode === "memorise") wordElements()[wordIndex].classList.add("is-revealed");
     playSingleWord(wordIndex);
   }
+
+  /* ---------- Quiz ---------- */
+
+  function buildQuizRounds() {
+    const unique = [];
+    const seen = new Set();
+    allWords.forEach((word) => {
+      if (seen.has(word.meaning)) return;
+      seen.add(word.meaning);
+      unique.push(word);
+    });
+    return shuffle(unique).slice(0, QUIZ_LENGTH).map((word) => {
+      const distractors = shuffle(unique.filter((other) => other.meaning !== word.meaning)).slice(0, 2);
+      return { word, options: shuffle([word, ...distractors]).map((w) => w.meaning) };
+    });
+  }
+
+  function renderQuizRound() {
+    const { rounds, current } = state.quiz;
+    const round = rounds[current];
+    ui.quiz.classList.remove("is-finished");
+    ui.quizProgress.textContent = `Question ${current + 1} of ${rounds.length}`;
+    ui.quizWord.textContent = round.word.arabic;
+    ui.quizFeedback.textContent = "";
+    ui.quizOptions.replaceChildren(...round.options.map((meaning) => {
+      const button = element("button", "", meaning);
+      button.type = "button";
+      button.addEventListener("click", () => answerQuiz(button, meaning));
+      return button;
+    }));
+  }
+
+  async function answerQuiz(button, meaning) {
+    const quiz = state.quiz;
+    const round = quiz.rounds[quiz.current];
+    const isRight = meaning === round.word.meaning;
+    ui.quizOptions.querySelectorAll("button").forEach((option) => {
+      option.disabled = true;
+      if (option.textContent === round.word.meaning) option.classList.add("is-right");
+    });
+    if (!isRight) button.classList.add("is-wrong");
+    if (isRight) quiz.score += 1;
+    ui.quizFeedback.textContent = isRight
+      ? `Beautiful. ${round.word.transliteration} means “${round.word.meaning}”.`
+      : `${round.word.transliteration} means “${round.word.meaning}”.`;
+    sound.tick();
+    vibrate(isRight ? 10 : 24);
+    try {
+      await playWord(round.word.ayahNumber, round.word.wordNumber);
+    } catch (error) {
+      console.error("Quiz word audio failed:", error);
+    }
+    await wait(QUIZ_NEXT_MS);
+    if (state.quiz !== quiz || !ui.quiz.open) return;
+    quiz.current += 1;
+    if (quiz.current < quiz.rounds.length) {
+      renderQuizRound();
+      return;
+    }
+    ui.quiz.classList.add("is-finished");
+    ui.quizProgress.textContent = "Complete";
+    ui.quizScore.textContent = `${quiz.score} of ${quiz.rounds.length} — ${quiz.score === quiz.rounds.length ? "every word is yours." : "keep listening, it will settle."}`;
+  }
+
+  function openQuiz() {
+    stopPlayback();
+    state.quiz = { rounds: buildQuizRounds(), current: 0, score: 0 };
+    renderQuizRound();
+    if (!ui.quiz.open) ui.quiz.showModal();
+  }
+
+  /* ---------- Settings ---------- */
 
   function setMode(mode) {
     const modes = ["listen", "learn", "memorise"];
@@ -587,10 +910,34 @@
     document.querySelectorAll(".word.is-revealed").forEach((el) => el.classList.remove("is-revealed"));
   }
 
-  function toggleSound() {
-    const shouldEnable = !sound.isEnabled();
-    sound.setEnabled(shouldEnable);
-    ui.soundToggle.setAttribute("aria-pressed", String(shouldEnable));
+  function toggleTajweed() {
+    state.isTajweedOn = !state.isTajweedOn;
+    ui.room.dataset.tajweed = state.isTajweedOn ? "on" : "off";
+    ui.tajweedToggle.setAttribute("aria-pressed", String(state.isTajweedOn));
+  }
+
+  function toggleRepeat() {
+    state.isRepeatOn = !state.isRepeatOn;
+    ui.repeat.setAttribute("aria-pressed", String(state.isRepeatOn));
+  }
+
+  function setSoundPanelOpen(isOpen) {
+    ui.soundPanel.hidden = !isOpen;
+    ui.soundMenu.setAttribute("aria-expanded", String(isOpen));
+  }
+
+  function chooseScape(choice) {
+    document.querySelectorAll("[data-scape]").forEach((option) => {
+      option.setAttribute("aria-checked", String(option.dataset.scape === choice));
+    });
+    const label = document.querySelector(`[data-scape="${choice}"]`).textContent;
+    ui.soundMenu.setAttribute("aria-label", `Soundscape: ${label.toLowerCase()}`);
+    if (choice === "off") {
+      sound.setEnabled(false);
+      return;
+    }
+    sound.setScape(choice);
+    sound.setEnabled(true);
   }
 
   function showScreen(name) {
@@ -598,10 +945,25 @@
     ui.scenes.classList.toggle("is-visible", name === "room");
   }
 
+  function togglePlay() {
+    if (state.isPlaying) {
+      stopPlayback();
+      return;
+    }
+    if (state.stop > LAST_AYAH) glideTo(0, true);
+    startPlayAlong();
+  }
+
   function handleKeydown(event) {
     const isRoomOpen = ui.room.classList.contains("is-active");
-    if (!isRoomOpen || ui.sheet.open) return;
-    const isOnControl = event.target instanceof HTMLButtonElement;
+    const isDialogOpen = ui.sheet.open || ui.quiz.open;
+    if (!isRoomOpen || isDialogOpen) return;
+    if (event.key === "Escape" && !ui.soundPanel.hidden) {
+      setSoundPanelOpen(false);
+      ui.soundMenu.focus();
+      return;
+    }
+    const isOnControl = event.target instanceof HTMLButtonElement || event.target instanceof HTMLInputElement;
     // Arabic reads right to left, so the left arrow also moves forward through the surah.
     if (["ArrowDown", "PageDown", "ArrowLeft"].includes(event.key)) {
       event.preventDefault();
@@ -617,15 +979,6 @@
       event.preventDefault();
       togglePlay();
     }
-  }
-
-  function togglePlay() {
-    if (state.isPlaying) {
-      stopPlayback();
-      return;
-    }
-    if (state.stop > LAST_AYAH) glideTo(0, true);
-    startPlayAlong();
   }
 
   /* ---------- Rising gold dust ---------- */
@@ -660,7 +1013,8 @@
       canvas.width = width * ratio;
       canvas.height = height * ratio;
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      motes = Array.from({ length: Math.round(width / 22) + 12 }, () => ({
+      // Scale the dust with the screen so a phone and a wide monitor feel equally full.
+      motes = Array.from({ length: Math.round(Math.sqrt(width * height) / 16) }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
         size: Math.random() * 9 + 4,
@@ -671,11 +1025,12 @@
 
     function draw(time) {
       ctx.clearRect(0, 0, width, height);
+      const voiceLift = Number(ui.root.style.getPropertyValue("--voice")) || 0;
       motes.forEach((m) => {
         const rise = isReducedMotion ? 0 : time * m.speed;
         const y = ((m.y - rise) % (height + 40) + height + 40) % (height + 40) - 20;
         const sway = isReducedMotion ? 0 : Math.sin(time / 3800 + m.phase) * 14;
-        ctx.globalAlpha = 0.22 + 0.33 * (0.5 + 0.5 * Math.sin(time / 1700 + m.phase));
+        ctx.globalAlpha = Math.min(1, 0.22 + 0.33 * (0.5 + 0.5 * Math.sin(time / 1700 + m.phase)) + voiceLift * 0.35);
         ctx.drawImage(sprite, m.x + sway - m.size / 2, y - m.size / 2, m.size, m.size);
       });
       ctx.globalAlpha = 1;
@@ -694,31 +1049,53 @@
       showScreen("room");
       sound.start();
       ui.journey.focus({ preventScroll: true });
-      applyPosition(state.position);
+      measureStop();
       updateInert();
       activateAyah(state.ayahIndex);
     });
     $('[data-action="home"]').addEventListener("click", () => {
       stopPlayback();
       state.arrivalId += 1;
+      setSoundPanelOpen(false);
       showScreen("welcome");
     });
     ui.play.addEventListener("click", togglePlay);
     $('[data-action="replay"]').addEventListener("click", replayVerse);
-    ui.soundToggle.addEventListener("click", toggleSound);
+    ui.repeat.addEventListener("click", toggleRepeat);
+    ui.tajweedToggle.addEventListener("click", toggleTajweed);
+    $('[data-action="quiz"]').addEventListener("click", openQuiz);
+    $('[data-action="quiz-again"]').addEventListener("click", openQuiz);
+    ui.quiz.addEventListener("close", () => { state.quiz = null; });
+    ui.soundMenu.addEventListener("click", () => setSoundPanelOpen(ui.soundPanel.hidden));
+    document.querySelectorAll("[data-scape]").forEach((option) =>
+      option.addEventListener("click", () => chooseScape(option.dataset.scape))
+    );
+    ui.haptics.addEventListener("change", () => { state.isHapticsOn = ui.haptics.checked; });
+    document.addEventListener("pointerdown", (event) => {
+      if (ui.soundPanel.hidden) return;
+      if (ui.soundPanel.contains(event.target) || ui.soundMenu.contains(event.target)) return;
+      setSoundPanelOpen(false);
+    });
     $('[data-action="hear-word"]').addEventListener("click", () => {
-      if (state.sheetWordIndex !== null) playSingleWord(state.sheetWordIndex);
+      if (!state.sheetWord) return;
+      playWord(state.sheetWord.ayahNumber, state.sheetWord.wordNumber)
+        .catch((error) => showError("Word audio failed:", error));
     });
     document.querySelectorAll("button[data-mode]").forEach((btn) =>
       btn.addEventListener("click", () => setMode(btn.dataset.mode))
     );
     document.addEventListener("keydown", handleKeydown);
+    ["pointermove", "pointerdown", "keydown", "wheel", "touchstart"].forEach((type) =>
+      document.addEventListener(type, wakeChrome, { passive: true })
+    );
   }
 
   buildScenes();
   buildJourney();
   buildRail();
+  buildLegend();
   bindGestures();
   bindEvents();
+  measureStop();
   startMotes();
 })();

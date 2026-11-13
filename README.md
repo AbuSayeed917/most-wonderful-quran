@@ -6,11 +6,14 @@ We begin with **Surah Al-Fatiha** (The Opening).
 
 ## What it does
 
-- **Play along** — press play and Mishary Alafasy recites the whole surah. Each word lights up exactly as it is spoken, using Quran.com's word timings, and its transliteration and meaning appear live beneath the verse. When a verse ends, the journey glides on to the next one by itself.
-- **Learn** — every word shows its meaning beneath it. Tap a word for its transliteration, its root letters, and to hear it on its own.
+- **Play along** — press play and Mishary Alafasy recites the whole surah. Each word fills with light from right to left exactly as it is spoken (Quran.com word timings), its transliteration and meaning appear live beneath the verse, and a warm light swells with the reciter's voice. Verses glide on by themselves, and the controls fade away while he recites.
+- **Repeat ×3** — recite each verse three times before moving on, for memorising.
+- **Learn** — every word shows its meaning. Turn on **tajweed colours** (from Quran.com's tajweed data) with a guide to each rule in the verse. Tap a word — or press and hold one in any mode — for its transliteration, root letters, the words in Al-Fatiha that share its root, and to hear it alone.
 - **Memorise** — the words are veiled. Recite from the heart, then tap a word to check yourself.
-- **A journey from night to dawn** — scroll, swipe or use the arrow keys to glide between verses. Painted scenes crossfade with parallax and small moving details: a flickering lantern, shimmering water, turning rays of light and a glowing sun.
-- **ASMR soundscape** — a soft typing tap as each word arrives, over a quiet desert night: gusting stereo wind, drifting sand and distant crickets in an open-air reverb, with the crickets fading as dawn comes. It is all synthesised in the browser, with no music. Toggle it with the moon button.
+- **Test yourself** — a short quiz: see a word, choose its meaning, hear it recited.
+- **A journey from night to dawn** — scroll, swipe or use the arrow keys to glide between verses. Each painting moves in two depth layers (and leans with your mouse on desktop), with drifting mist, a sweep of light on each new verse, and small moving details: a flickering lantern, shimmering water, turning rays of light and a glowing sun.
+- **ASMR soundscapes** — desert night (gusting stereo wind, drifting sand, distant crickets), soft rain, or a gentle stream, all in an open-air reverb, plus a soft typing tap as each word arrives and gentle vibration on Android. It is all synthesised in the browser, with no music.
+- **Every device** — phones (including notched and small ones), phones held sideways, tablets and large desktops.
 
 ## Run it
 

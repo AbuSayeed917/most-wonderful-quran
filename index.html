@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#05060f">
   <title>Most Wonderful Quran</title>
   <meta name="description" content="Learn the Quran slowly, softly, word by word. Starting with Surah Al-Fatiha.">
   <link rel="icon" href="data:,">
@@ -13,7 +14,9 @@
 </head>
 <body>
   <div class="scenes" aria-hidden="true"></div>
-  <div class="haze" aria-hidden="true"></div>
+  <div class="mist" aria-hidden="true"><span></span><span></span></div>
+  <div class="voice-light" aria-hidden="true"></div>
+  <div class="sweep" aria-hidden="true"></div>
   <canvas class="motes" aria-hidden="true"></canvas>
   <div class="vignette" aria-hidden="true"></div>
 
@@ -36,7 +39,7 @@
   </section>
 
   <!-- Screen 2: the journey from night to dawn -->
-  <main class="screen screen--room" data-screen="room" data-mode="listen" aria-label="Surah Al-Fatiha">
+  <main class="screen screen--room" data-screen="room" data-mode="listen" data-tajweed="off" aria-label="Surah Al-Fatiha">
     <div class="journey" tabindex="0" aria-label="Verses. Scroll, swipe or use the arrow keys to move between verses."></div>
 
     <header class="topbar">
@@ -51,6 +54,16 @@
       <span class="topbar__spacer" aria-hidden="true"></span>
     </header>
 
+    <!-- Learn mode: tajweed colours and what they mean -->
+    <div class="learnbar">
+      <button class="chip" type="button" data-action="tajweed" aria-pressed="false">
+        <span class="chip__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        Tajweed colours
+      </button>
+      <p class="learnbar__tip">Tap a word to open it. In any mode, press and hold a word.</p>
+    </div>
+    <ul class="legend" aria-label="Tajweed colour guide"></ul>
+
     <nav class="rail" aria-label="Jump to verse">
       <span class="rail__track" aria-hidden="true"></span>
       <span class="rail__fill" aria-hidden="true"></span>
@@ -62,6 +75,10 @@
     </div>
 
     <footer class="dock">
+      <button class="glass-btn glass-btn--bare" type="button" data-action="repeat" aria-pressed="false" aria-label="Repeat each verse three times">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></svg>
+        <span class="dock__badge" aria-hidden="true">3</span>
+      </button>
       <button class="glass-btn glass-btn--bare" type="button" data-action="replay" aria-label="Recite this verse again">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M4 4v5h5"/></svg>
       </button>
@@ -73,10 +90,28 @@
         <svg class="play__icon play__icon--play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
         <svg class="play__icon play__icon--pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
       </button>
-      <button class="glass-btn glass-btn--bare" type="button" data-action="sound" aria-pressed="true" aria-label="Night soundscape and typing sounds">
+      <button class="glass-btn glass-btn--bare" type="button" data-action="soundmenu" aria-expanded="false" aria-controls="sound-panel" aria-label="Soundscape: night">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
       </button>
+      <button class="glass-btn glass-btn--bare" type="button" data-action="quiz" aria-label="Test yourself">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9.5"/></svg>
+      </button>
     </footer>
+
+    <div class="sound-panel" id="sound-panel" hidden>
+      <p class="sound-panel__title">Soundscape</p>
+      <div class="sound-panel__options" role="radiogroup" aria-label="Soundscape">
+        <button type="button" role="radio" aria-checked="true" data-scape="night">Desert night</button>
+        <button type="button" role="radio" aria-checked="false" data-scape="rain">Soft rain</button>
+        <button type="button" role="radio" aria-checked="false" data-scape="stream">Gentle stream</button>
+        <button type="button" role="radio" aria-checked="false" data-scape="off">Silence</button>
+      </div>
+      <label class="sound-panel__toggle">
+        <input type="checkbox" data-action="haptics" checked>
+        <span>Gentle vibration on each word (Android)</span>
+      </label>
+    </div>
+
     <p class="status" role="status" aria-live="polite"></p>
   </main>
 
@@ -92,10 +127,30 @@
       <div><dt>Root letters</dt><dd class="sheet__root" lang="ar" dir="rtl"></dd></div>
       <div><dt>Appears in</dt><dd class="sheet__place"></dd></div>
     </dl>
+    <div class="family">
+      <p class="family__title">Its family in Al-Fatiha</p>
+      <ul class="family__list"></ul>
+    </div>
     <button class="btn btn--ghost" type="button" data-action="hear-word">Hear it gently</button>
   </dialog>
 
-  <audio class="word-voice" preload="none"></audio>
+  <!-- Quiz -->
+  <dialog class="quiz" aria-labelledby="quiz-title">
+    <form method="dialog" class="sheet__close-form">
+      <button class="sheet__close" aria-label="Close">×</button>
+    </form>
+    <p class="quiz__progress"></p>
+    <h2 id="quiz-title" class="quiz__prompt">What does this word mean?</h2>
+    <p class="quiz__word" lang="ar" dir="rtl"></p>
+    <div class="quiz__options"></div>
+    <p class="quiz__feedback" aria-live="polite"></p>
+    <div class="quiz__end">
+      <p class="quiz__score"></p>
+      <button class="btn btn--primary" type="button" data-action="quiz-again">Try again</button>
+    </div>
+  </dialog>
+
+  <audio class="word-voice" preload="none" crossorigin="anonymous"></audio>
 
   <script src="data/fatiha.js"></script>
   <script src="sound.js"></script>

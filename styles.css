@@ -2,9 +2,8 @@
   --night: #05060f;
   --ink: #f6f0e3;
   --ink-soft: #e6dfec;
-  --ink-dim: rgba(246, 240, 227, 0.42);
+  --ink-dim: rgba(246, 240, 227, 0.4);
   --gold: #f4d59a;
-  --gold-deep: #e2b46a;
   --gold-glow: rgba(244, 213, 154, 0.6);
   --gold-whisper: rgba(244, 213, 154, 0.16);
   --glass: rgba(12, 14, 32, 0.42);
@@ -15,6 +14,12 @@
   --font-arabic: "Amiri Quran", "Amiri", serif;
   --font-serif: "Cormorant Garamond", Georgia, serif;
   --font-sans: "Inter", system-ui, sans-serif;
+  /* Tajweed colours, tuned to read on a dark sky. */
+  --tj-silent: #9ea3bb;
+  --tj-madd-natural: #c9a7ff;
+  --tj-madd-permissible: #ffab66;
+  --tj-madd-necessary: #ff7a88;
+  --voice: 0;
   color-scheme: dark;
 }
 
@@ -31,10 +36,12 @@ body {
 }
 
 button { font: inherit; color: inherit; cursor: pointer; }
-button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
+button:focus-visible, .journey:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
 
-/* ---------- Scenes: one painting per ayah, crossfaded by the glide ---------- */
+/* ---------- Scenes: one painting per ayah, in two depth layers ---------- */
 .scenes {
+  --tilt-x: 0;
+  --tilt-y: 0;
   position: fixed;
   inset: 0;
   z-index: 0;
@@ -47,11 +54,12 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   /* Extra height lets the parallax drift without exposing an edge. */
   --stage-h: max(calc(100vh + 160px), 177.78vw);
   --stage-w: max(100vw, calc((100vh + 160px) * 0.5625));
+  --shift: 0;
   position: absolute;
   inset: -80px 0;
   overflow: hidden;
   opacity: 0;
-  will-change: opacity, transform;
+  will-change: opacity;
 }
 
 /* The stage keeps the painting's exact 9:16 shape, so effects can be pinned in % to things in the art. */
@@ -66,10 +74,24 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   animation: stage-breathe var(--breathe, 24s) ease-in-out infinite;
 }
 @keyframes stage-breathe {
-  0%, 100% { transform: scale(1.03); }
+  0%, 100% { transform: scale(1.04); }
   50% { transform: scale(1.1); }
 }
-.scene__img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/*
+ * Depth: the same painting twice. The ground copy is masked to the lower half and moves
+ * more than the sky, so the horizon separates as you glide or move the pointer.
+ */
+.scene__layer { position: absolute; inset: -3%; will-change: transform; }
+.scene__layer img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.scene__layer--sky {
+  transform: translate3d(calc(var(--tilt-x) * -5px), calc(var(--shift) * 0.55px + var(--tilt-y) * -4px), 0);
+}
+.scene__layer--ground {
+  -webkit-mask-image: linear-gradient(180deg, transparent 52%, #000 70%);
+  mask-image: linear-gradient(180deg, transparent 52%, #000 70%);
+  transform: translate3d(calc(var(--tilt-x) * -14px), calc(var(--shift) * 1.2px + var(--tilt-y) * -9px), 0);
+}
 
 .fx { position: absolute; pointer-events: none; }
 
@@ -171,17 +193,56 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   50% { scale: 1.15; opacity: 1; }
 }
 
-.haze {
+/* ---------- Atmosphere ---------- */
+.mist { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; mix-blend-mode: screen; }
+.mist span {
+  position: absolute;
+  left: -40%;
+  width: 180%;
+  height: 34%;
+  border-radius: 50%;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(235, 228, 255, 0.11), rgba(235, 228, 255, 0));
+  animation: mist-drift 46s ease-in-out infinite alternate;
+}
+.mist span:first-child { top: 56%; }
+.mist span:last-child { top: 70%; height: 28%; animation-duration: 62s; animation-direction: alternate-reverse; }
+@keyframes mist-drift { from { transform: translateX(-14%); } to { transform: translateX(14%); } }
+
+/* The reciter's voice, made visible: a warm light that swells with each phrase. */
+.voice-light {
   position: fixed;
-  inset: -10% -30%;
+  inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(40% 18% at 30% 62%, rgba(255, 240, 220, 0.1), transparent),
-    radial-gradient(36% 14% at 72% 78%, rgba(255, 240, 220, 0.08), transparent);
-  animation: haze 34s ease-in-out infinite;
+  background: radial-gradient(55% 32% at 50% 44%, rgba(255, 222, 168, 0.5), rgba(255, 222, 168, 0));
+  mix-blend-mode: screen;
+  opacity: calc(var(--voice) * 0.55);
 }
-@keyframes haze { 0%, 100% { transform: translateX(-12%); } 50% { transform: translateX(12%); } }
+.voice-light::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(28% 16% at 50% 44%, rgba(255, 232, 190, 0.35), rgba(255, 232, 190, 0));
+  opacity: 0;
+}
+.voice-light.is-pulse::after { animation: onset 1.1s var(--ease-out); }
+@keyframes onset { 0% { opacity: 0; transform: scale(0.9); } 25% { opacity: 1; } 100% { opacity: 0; transform: scale(1.25); } }
+
+/* A soft band of light passes over the scene when a new verse arrives. */
+.sweep { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; mix-blend-mode: screen; }
+.sweep::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -60%;
+  width: 50%;
+  height: 200%;
+  rotate: 18deg;
+  background: linear-gradient(90deg, rgba(255, 232, 196, 0), rgba(255, 232, 196, 0.16), rgba(255, 232, 196, 0));
+  opacity: 0;
+}
+.sweep.is-sweeping::before { animation: sweep 1.8s var(--ease-soft); }
+@keyframes sweep { 0% { opacity: 0; transform: translateX(0); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateX(340%); } }
 
 .motes { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
 
@@ -191,25 +252,18 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(70% 38% at 50% 46%, rgba(5, 6, 15, 0.55), transparent),
+    radial-gradient(70% 38% at 50% 46%, rgba(5, 6, 15, 0.5), transparent),
     radial-gradient(120% 70% at 50% 50%, transparent 55%, rgba(5, 6, 15, 0.7) 100%),
     linear-gradient(180deg, rgba(5, 6, 15, 0.65) 0%, transparent 18%, transparent 70%, rgba(5, 6, 15, 0.8) 100%);
 }
 
 /* ---------- Screens ---------- */
-.screen {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  display: none;
-  animation: fade-in 1.1s var(--ease-soft) both;
-}
+.screen { position: fixed; inset: 0; z-index: 1; display: none; animation: fade-in 1.1s var(--ease-soft) both; }
 .screen.is-active { display: flex; }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---------- Welcome ---------- */
 .screen--welcome { align-items: flex-end; justify-content: center; }
-
 .welcome__scene { position: absolute; inset: 0; overflow: hidden; background: var(--night); }
 .welcome__scene img {
   width: 100%;
@@ -256,13 +310,14 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   min-height: 52px;
   border: 0;
   border-radius: 999px;
-  padding: 0 34px;
+  padding: 0 30px;
   font-size: 0.95rem;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   transition: transform 0.5s var(--ease-out), box-shadow 0.5s var(--ease-out), background 0.5s;
 }
 .btn svg { width: 16px; height: 16px; fill: currentColor; }
@@ -277,11 +332,12 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
 .journey__track { will-change: transform; }
 
 .ayah, .ameen {
-  height: 100vh;
+  /* --stop-h is the real visible height (set from JS), so mobile browser bars never crop a verse. */
+  height: var(--stop-h, 100vh);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 96px 28px 150px;
+  padding: 100px 28px 160px;
   text-align: center;
 }
 .ayah__inner {
@@ -301,8 +357,9 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   font-size: 0.66rem;
   letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: rgba(246, 240, 227, 0.72);
+  color: rgba(246, 240, 227, 0.75);
 }
+.ayah__count { color: var(--gold); letter-spacing: 0.2em; }
 /* Eight-point star: two squares, one slowly turning. */
 .ornament { position: relative; width: 40px; height: 40px; display: grid; place-items: center; }
 .ornament::before, .ornament::after { content: ""; position: absolute; inset: 6px; border: 1px solid rgba(244, 213, 154, 0.6); }
@@ -322,6 +379,7 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
 }
 .ayah--long .ayah__arabic { font-size: clamp(2rem, 8.4vw, 3.6rem); }
 
+/* ---------- Words ---------- */
 .word {
   position: relative;
   border: 0;
@@ -331,17 +389,21 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  color: var(--ink-dim);
-  text-shadow: 0 2px 20px rgba(5, 6, 15, 0.7);
+  color: var(--ink);
   opacity: 0;
   transform: translateY(0.18em);
   filter: blur(6px);
+  -webkit-touch-callout: none;
+  user-select: none;
   transition:
     opacity 0.7s var(--ease-out),
     transform 0.7s var(--ease-out),
-    filter 0.7s var(--ease-out),
-    color 0.45s var(--ease-soft),
-    text-shadow 0.45s var(--ease-soft);
+    filter 0.5s var(--ease-soft);
+}
+.word.is-arrived { opacity: 1; transform: none; filter: drop-shadow(0 2px 12px rgba(5, 6, 15, 0.75)); }
+.word.is-spoken {
+  transform: translateY(-0.04em);
+  filter: drop-shadow(0 0 14px rgba(244, 213, 154, 0.75)) drop-shadow(0 2px 12px rgba(5, 6, 15, 0.6));
 }
 /* A soft pool of light sits behind the word being recited. */
 .word::before {
@@ -349,22 +411,36 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   position: absolute;
   inset: 18% -12%;
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(244, 213, 154, 0.35), rgba(244, 213, 154, 0));
+  background: radial-gradient(closest-side, rgba(244, 213, 154, 0.3), rgba(244, 213, 154, 0));
   opacity: 0;
   transform: scale(0.6);
   transition: opacity 0.45s var(--ease-soft), transform 0.6s var(--ease-out);
   z-index: -1;
 }
-.word.is-arrived { opacity: 1; transform: none; filter: blur(0); }
-.word.is-glinting { color: var(--ink); text-shadow: 0 0 22px rgba(244, 213, 154, 0.7); }
-.word.is-heard { color: var(--ink); }
-.word.is-spoken {
-  color: var(--gold);
-  text-shadow: 0 0 26px rgba(244, 213, 154, 0.9), 0 0 2px var(--gold);
-  transform: translateY(-0.04em);
-}
 .word.is-spoken::before { opacity: 1; transform: scale(1); }
-.word:hover { color: var(--ink); }
+
+/*
+ * The recited word fills with light from right to left, in step with the reciter.
+ * app.js sets --fill (0 to 1) every frame from the word's timing.
+ */
+.word__ar {
+  --fill: 0;
+  --lit: var(--gold);
+  --base: var(--ink-dim);
+  background-image: linear-gradient(to left, var(--lit) calc(var(--fill) * 125% - 25%), var(--base) calc(var(--fill) * 125%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.word.is-spoken .word__ar { --base: rgba(246, 240, 227, 0.62); }
+.word.is-heard .word__ar, .word.is-glinting .word__ar { --fill: 1; --lit: var(--ink); }
+
+.word__tj { display: none; }
+.tj { color: inherit; }
+.tj--ham_wasl, .tj--laam_shamsiyah { color: var(--tj-silent); }
+.tj--madda_normal { color: var(--tj-madd-natural); }
+.tj--madda_permissible { color: var(--tj-madd-permissible); }
+.tj--madda_necessary { color: var(--tj-madd-necessary); }
 
 .word__gloss {
   display: none;
@@ -373,14 +449,20 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   line-height: 1.2;
   color: var(--ink-soft);
   direction: ltr;
-  margin-top: -0.6em;
-  padding-bottom: 8px;
+  margin-top: -0.35em;
+  padding-bottom: 10px;
 }
 [data-mode="learn"] .word { display: inline-flex; flex-direction: column; align-items: center; }
 [data-mode="learn"] .word__gloss { display: block; }
+[data-mode="learn"][data-tajweed="on"] .word__ar { display: none; }
+[data-mode="learn"][data-tajweed="on"] .word__tj { display: inline; color: var(--ink); }
 
-[data-mode="memorise"] .word.is-arrived:not(.is-revealed) { color: transparent; text-shadow: 0 0 18px rgba(236, 214, 224, 0.55); }
-[data-mode="memorise"] .word.is-spoken:not(.is-revealed) { text-shadow: 0 0 26px var(--gold-glow); }
+[data-mode="memorise"] .word.is-arrived:not(.is-revealed) .word__ar {
+  background-image: none;
+  color: transparent;
+  text-shadow: 0 0 18px rgba(236, 214, 224, 0.6);
+}
+[data-mode="memorise"] .word.is-spoken:not(.is-revealed) .word__ar { text-shadow: 0 0 24px var(--gold-glow); }
 
 /* The word being recited, explained live: the heart of play-along learning. */
 .now {
@@ -411,7 +493,7 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   transition: opacity 0.9s var(--ease-soft), transform 0.9s var(--ease-out);
 }
 .ayah__translation { max-width: 30ch; font-size: clamp(1.2rem, 4.6vw, 1.55rem); font-style: italic; line-height: 1.45; color: #f1ebf3; }
-.ayah__reflection { margin-top: 16px; max-width: 36ch; font-size: 1rem; line-height: 1.5; color: rgba(246, 240, 227, 0.78); }
+.ayah__reflection { margin-top: 16px; max-width: 36ch; font-size: 1rem; line-height: 1.5; color: rgba(246, 240, 227, 0.8); }
 .ayah.is-current .ayah__translation { opacity: 1; transform: none; transition-delay: 0.35s; }
 .ayah.is-recited .ayah__reflection { opacity: 1; transform: none; }
 [data-mode="memorise"] .ayah.is-current .ayah__translation { opacity: 0.4; }
@@ -439,6 +521,7 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
 .topbar__spacer { width: 44px; flex: none; }
 
 .glass-btn {
+  position: relative;
   flex: none;
   width: 44px;
   height: 44px;
@@ -454,9 +537,7 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   transition: color 0.4s, border-color 0.4s, background 0.4s;
 }
 .glass-btn--bare { border-color: transparent; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-.glass-btn:hover { color: var(--gold); }
-.glass-btn[aria-pressed="true"] { color: var(--gold); }
-.glass-btn[aria-pressed="false"] { color: rgba(246, 240, 227, 0.55); }
+.glass-btn:hover, .glass-btn[aria-pressed="true"], .glass-btn[aria-expanded="true"] { color: var(--gold); }
 .glass-btn svg, .play__icon {
   width: 20px;
   height: 20px;
@@ -466,6 +547,23 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.dock__badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #241a07;
+  font-size: 0.6rem;
+  font-weight: 500;
+  line-height: 15px;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.3s, transform 0.4s var(--ease-out);
+}
+[aria-pressed="true"] > .dock__badge { opacity: 1; transform: none; }
 
 .modes {
   display: flex;
@@ -479,6 +577,77 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
 .mode { border: 0; background: none; min-height: 36px; padding: 0 14px; border-radius: 999px; font-size: 0.8rem; color: var(--ink-soft); transition: color 0.4s, background 0.4s; }
 .mode.is-active { background: rgba(244, 213, 154, 0.2); color: var(--gold); }
 
+/* ---------- Learn mode tools ---------- */
+.learnbar {
+  position: absolute;
+  z-index: 3;
+  top: 72px;
+  left: 0;
+  right: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+[data-mode="learn"] .learnbar { display: flex; animation: fade-in 0.5s var(--ease-soft); }
+.learnbar__tip { margin: 0; font-size: 0.7rem; color: rgba(246, 240, 227, 0.75); text-shadow: 0 1px 8px rgba(5, 6, 15, 0.9); }
+.chip {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+.chip[aria-pressed="true"] { border-color: rgba(244, 213, 154, 0.5); color: var(--gold); }
+.chip__dots { display: inline-flex; gap: 3px; }
+.chip__dots i { width: 6px; height: 6px; border-radius: 50%; }
+.chip__dots i:nth-child(1) { background: var(--tj-madd-natural); }
+.chip__dots i:nth-child(2) { background: var(--tj-madd-permissible); }
+.chip__dots i:nth-child(3) { background: var(--tj-madd-necessary); }
+
+.legend {
+  position: absolute;
+  z-index: 3;
+  left: 12px;
+  right: 12px;
+  bottom: 106px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: none;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+[data-mode="learn"][data-tajweed="on"] .legend { display: flex; animation: fade-in 0.5s var(--ease-soft); }
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  font-size: 0.7rem;
+  color: rgba(246, 240, 227, 0.55);
+  transition: color 0.4s;
+}
+.legend li { display: none; }
+.legend li.is-present { display: inline-flex; color: var(--ink); }
+[data-mode="learn"][data-tajweed="on"] .ayah__reflection { display: none; }
+.legend i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+/* ---------- Rail, cue, dock ---------- */
 .rail { position: absolute; z-index: 3; right: 10px; top: 50%; height: 216px; width: 24px; transform: translateY(-50%); }
 .rail__track, .rail__fill { position: absolute; left: 11.5px; top: 8px; width: 1px; height: 200px; }
 .rail__track { background: rgba(246, 240, 227, 0.2); }
@@ -515,6 +684,7 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   color: rgba(246, 240, 227, 0.75);
   pointer-events: none;
 }
+[data-mode="learn"] .cue { display: none; }
 .cue__line { position: relative; width: 1px; height: 22px; background: rgba(246, 240, 227, 0.2); overflow: hidden; }
 .cue__line::after { content: ""; position: absolute; inset: 0; background: var(--gold); animation: cue 2.2s ease-in-out infinite; }
 @keyframes cue {
@@ -532,8 +702,8 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 8px 14px;
+  gap: 6px;
+  padding: 6px 10px;
   border-radius: 999px;
   background: var(--glass);
   border: 1px solid var(--glass-edge);
@@ -546,6 +716,7 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   position: relative;
   width: 64px;
   height: 64px;
+  margin: 0 4px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -553,6 +724,7 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   border-radius: 50%;
   background: radial-gradient(circle, rgba(244, 213, 154, 0.22), rgba(244, 213, 154, 0.05) 70%);
   color: var(--gold);
+  box-shadow: 0 0 calc(var(--voice) * 40px) calc(var(--voice) * 6px) rgba(244, 213, 154, 0.35);
 }
 .play__ring { position: absolute; inset: 0; width: 100%; height: 100%; rotate: -90deg; }
 .play__ring circle { fill: none; stroke-width: 1.5; }
@@ -570,6 +742,37 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
 .play.is-playing .play__icon--play { display: none; }
 .play.is-playing .play__icon--pause { display: block; }
 
+.sound-panel {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 104px;
+  width: min(320px, calc(100% - 32px));
+  transform: translateX(-50%);
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(14, 16, 36, 0.78);
+  border: 1px solid var(--glass-edge);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  backdrop-filter: blur(20px) saturate(1.3);
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+  animation: sheet-rise 0.35s var(--ease-out);
+}
+.sound-panel[hidden] { display: none; }
+.sound-panel__title { margin: 0 0 10px; font-size: 0.66rem; letter-spacing: 0.28em; text-transform: uppercase; color: rgba(246, 240, 227, 0.75); }
+.sound-panel__options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sound-panel__options button {
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-edge);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.sound-panel__options button[aria-checked="true"] { border-color: rgba(244, 213, 154, 0.55); background: rgba(244, 213, 154, 0.14); color: var(--gold); }
+.sound-panel__toggle { margin-top: 12px; display: flex; align-items: center; gap: 10px; font-size: 0.78rem; color: var(--ink-soft); }
+.sound-panel__toggle input { width: 18px; height: 18px; accent-color: #dcb06b; }
+
 .status {
   position: absolute;
   z-index: 3;
@@ -581,11 +784,13 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   font-size: 0.75rem;
   color: #ffd9c2;
   text-shadow: 0 1px 10px rgba(5, 6, 15, 0.9);
+  pointer-events: none;
 }
 
-/* ---------- Word sheet ---------- */
-.sheet {
+/* ---------- Dialogs: word sheet and quiz ---------- */
+.sheet, .quiz {
   width: min(420px, calc(100% - 32px));
+  max-height: calc(100vh - 40px);
   border: 1px solid rgba(244, 213, 154, 0.22);
   border-radius: 26px;
   background: linear-gradient(180deg, var(--sheet), #11142f);
@@ -594,26 +799,169 @@ button:focus-visible, .journey:focus-visible { outline: 2px solid var(--gold); o
   text-align: center;
   box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7), 0 0 60px -30px var(--gold-glow);
 }
-.sheet[open] { animation: sheet-rise 0.5s var(--ease-out) both; }
-.sheet::backdrop { background: rgba(4, 5, 14, 0.55); backdrop-filter: blur(6px); }
-@keyframes sheet-rise { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: none; } }
+.sheet[open], .quiz[open] { animation: sheet-rise 0.45s var(--ease-out) both; }
+.sheet::backdrop, .quiz::backdrop { background: rgba(4, 5, 14, 0.55); backdrop-filter: blur(6px); }
+@keyframes sheet-rise { from { opacity: 0; transform: translateY(18px) scale(0.98); } to { opacity: 1; transform: none; } }
 .sheet__close-form { position: absolute; top: 10px; right: 12px; margin: 0; }
-.sheet__close { border: 0; background: none; font-size: 1.6rem; line-height: 1; color: var(--ink-soft); width: 44px; height: 44px; }
+.sheet__close { border: 0; border-radius: 50%; background: none; font-size: 1.6rem; line-height: 1; color: var(--ink-soft); width: 44px; height: 44px; }
 .sheet__arabic { margin: 0; font-family: var(--font-arabic); font-size: 3.6rem; line-height: 1.8; color: var(--gold); text-shadow: 0 0 30px var(--gold-glow); }
 .sheet__translit { margin: 0; font-family: var(--font-serif); font-style: italic; font-size: 1.3rem; color: var(--ink-soft); }
 .sheet__meaning { margin: 6px 0 20px; font-family: var(--font-serif); font-size: 1.5rem; }
-.sheet__facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 22px; }
+.sheet__facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 16px; }
 .sheet__facts div { padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(236, 230, 214, 0.08); }
 .sheet__facts dt { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: #b4afcc; margin-bottom: 4px; }
 .sheet__facts dd { margin: 0; font-size: 1rem; }
 .sheet__root { font-family: var(--font-arabic); font-size: 1.4rem; color: var(--gold); }
 
-/* ---------- Larger screens ---------- */
+.family { margin: 0 0 20px; }
+.family[hidden] { display: none; }
+.family__title { margin: 0 0 8px; font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: #b4afcc; }
+.family__list { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.family__list li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 12px 8px;
+  border-radius: 14px;
+  background: rgba(244, 213, 154, 0.08);
+  border: 1px solid rgba(244, 213, 154, 0.18);
+}
+.family__list .family__ar { font-family: var(--font-arabic); font-size: 1.5rem; line-height: 1.7; color: var(--ink); }
+.family__list .family__en { font-family: var(--font-serif); font-size: 0.9rem; color: var(--ink-soft); }
+
+.quiz__progress { margin: 0; font-size: 0.66rem; letter-spacing: 0.28em; text-transform: uppercase; color: #b4afcc; }
+.quiz__prompt { margin: 8px 0 0; font-family: var(--font-serif); font-weight: 400; font-size: 1.3rem; color: var(--ink-soft); }
+.quiz__word { margin: 4px 0 14px; font-family: var(--font-arabic); font-size: 3.4rem; line-height: 1.8; color: var(--gold); text-shadow: 0 0 30px var(--gold-glow); }
+.quiz__options { display: grid; gap: 10px; }
+.quiz__options button {
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: 16px;
+  border: 1px solid var(--glass-edge);
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  color: var(--ink);
+  transition: background 0.3s, border-color 0.3s, transform 0.3s var(--ease-out);
+}
+.quiz__options button:hover:not(:disabled) { border-color: rgba(244, 213, 154, 0.4); transform: translateY(-1px); }
+.quiz__options button.is-right { border-color: #9fe0b0; background: rgba(120, 220, 150, 0.16); }
+.quiz__options button.is-wrong { border-color: #ff9aa6; background: rgba(255, 120, 140, 0.14); }
+.quiz__options button:disabled { cursor: default; }
+.quiz__feedback { min-height: 1.4em; margin: 14px 0 0; font-family: var(--font-serif); font-style: italic; font-size: 1.05rem; color: var(--ink-soft); }
+.quiz__end { display: none; flex-direction: column; align-items: center; gap: 14px; margin-top: 8px; }
+.quiz.is-finished .quiz__end { display: flex; }
+.quiz.is-finished .quiz__prompt, .quiz.is-finished .quiz__word, .quiz.is-finished .quiz__options { display: none; }
+.quiz__score { margin: 0; font-family: var(--font-serif); font-size: 1.6rem; color: var(--gold); }
+
+/* ---------- Soothing pass ---------- */
+:root {
+  --gold: #efd4a2;
+  --gold-glow: rgba(239, 212, 162, 0.45);
+  --ink: #f3ede2;
+  --ink-dim: rgba(243, 237, 226, 0.36);
+}
+.fx-stars span { animation-duration: 6s; }
+.mist span { animation-duration: 70s; }
+.mist span:last-child { animation-duration: 96s; }
+.scene__stage { animation-duration: calc(var(--breathe, 24s) * 1.4); }
+.voice-light { opacity: calc(var(--voice) * 0.38); }
+.word.is-spoken { filter: drop-shadow(0 0 12px rgba(239, 212, 162, 0.55)) drop-shadow(0 2px 12px rgba(5, 6, 15, 0.6)); }
+.word.is-spoken::before { opacity: 0.75; }
+.ayah__translation { color: #ece4ee; }
+.vignette {
+  background:
+    radial-gradient(70% 38% at 50% 46%, rgba(5, 6, 15, 0.5), transparent),
+    radial-gradient(110% 68% at 50% 48%, transparent 48%, rgba(5, 6, 15, 0.82) 100%),
+    linear-gradient(180deg, rgba(5, 6, 15, 0.7) 0%, transparent 20%, transparent 68%, rgba(5, 6, 15, 0.85) 100%);
+}
+
+/* Words only dim to show what's coming during play-along; at rest the verse reads in full. */
+.screen--room:not(.is-reciting) .word__ar { --base: var(--ink); }
+.screen--room.is-reciting .word__ar { --base: rgba(243, 237, 226, 0.46); }
+
+/* As the sky brightens towards dawn, a warm shade deepens behind the text to keep it readable. */
+.vignette::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(78% 46% at 50% 46%, rgba(18, 12, 10, 0.62), rgba(18, 12, 10, 0) 82%);
+  opacity: var(--dawn, 0);
+}
+
+/* While reciting, the controls drift out of the way so only the painting and the verse remain. */
+.topbar, .rail, .dock, .learnbar, .legend { transition: opacity 1.4s var(--ease-soft); }
+.screen--room.is-immersed .topbar,
+.screen--room.is-immersed .rail,
+.screen--room.is-immersed .learnbar { opacity: 0; }
+.screen--room.is-immersed .dock { opacity: 0.22; }
+.screen--room.is-immersed .legend { opacity: 0.4; }
+
+/* ---------- Every device: notches, small phones, landscape, tablets, desktops ---------- */
+.topbar { padding-top: max(18px, env(safe-area-inset-top)); padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+.dock { bottom: calc(24px + env(safe-area-inset-bottom)); }
+.rail { right: max(10px, env(safe-area-inset-right)); }
+.welcome__content { padding-bottom: max(48px, calc(8vh + env(safe-area-inset-bottom))); }
+
+/* Small phones (iPhone SE and narrower Androids). */
+@media (max-width: 360px) {
+  .mode { padding: 0 10px; font-size: 0.74rem; }
+  .dock { gap: 2px; padding: 5px 6px; }
+  .play { width: 58px; height: 58px; }
+  .ayah, .ameen { padding-left: 20px; padding-right: 28px; }
+}
+
+/* Tablets and up. */
 @media (min-width: 720px) {
-  .topbar { padding: 26px 32px 0; }
+  .topbar { padding: max(26px, env(safe-area-inset-top)) 32px 0; }
   .mode { padding: 0 20px; font-size: 0.85rem; }
   .rail { right: 28px; }
   .now { font-size: 1.5rem; }
+  .dock { gap: 10px; padding: 8px 14px; }
+  .ayah__reflection { font-size: 1.1rem; }
+  .sheet, .quiz { padding: 34px 32px 30px; }
+}
+
+/* Large desktops: let the Arabic breathe at a size that suits a big screen. */
+@media (min-width: 1200px) {
+  .ayah__arabic { font-size: clamp(4.8rem, 5.4vw, 6rem); }
+  .ayah--long .ayah__arabic { font-size: clamp(3.4rem, 3.8vw, 4.4rem); }
+  .ayah__translation { font-size: 1.75rem; }
+  .now { font-size: 1.65rem; }
+  .ayah__inner { max-width: 1000px; }
+}
+
+/* Short screens: phones held sideways, small laptop windows. */
+@media (max-height: 560px) {
+  .ayah, .ameen { padding: 64px 72px 84px; }
+  .ayah__meta { margin-bottom: 0; }
+  .ornament { width: 30px; height: 30px; }
+  .ayah__arabic { font-size: clamp(1.8rem, 7.5vh, 2.8rem); line-height: 1.8; }
+  .ayah--long .ayah__arabic { font-size: clamp(1.5rem, 6vh, 2.2rem); }
+  .now { margin: 4px 0 8px; min-height: 1.6rem; font-size: 1.1rem; }
+  .ayah__translation { font-size: 1.05rem; max-width: 46ch; }
+  .ayah__reflection { display: none; }
+  .ameen__arabic { font-size: 3rem; }
+  .ameen__line { margin-bottom: 10px; font-size: 1.15rem; }
+  .btn { min-height: 44px; padding: 0 20px; font-size: 0.85rem; }
+  .cue { display: none; }
+  .dock { bottom: calc(8px + env(safe-area-inset-bottom)); padding: 3px 8px; }
+  .play { width: 52px; height: 52px; }
+  .learnbar { top: 58px; }
+  .learnbar__tip { display: none; }
+  .legend { bottom: 70px; }
+  .sound-panel { bottom: 76px; }
+  .status { bottom: 72px; }
+  .welcome__arabic { font-size: clamp(3rem, 16vh, 4.5rem); }
+  .welcome__english { margin-bottom: 12px; }
+  .welcome__content { padding-bottom: 20px; }
+  .welcome__note { display: none; }
+}
+
+/* Only devices with a real hover get hover lifts, so taps on touch screens don't leave states stuck. */
+@media (hover: none) {
+  .btn--primary:hover { transform: none; }
+  .quiz__options button:hover:not(:disabled) { transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
