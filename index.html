@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Most Wonderful Quran</title>
+  <meta name="description" content="Learn the Quran slowly, softly, word by word. Starting with Surah Al-Fatiha.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas class="motes" aria-hidden="true"></canvas>
+
+  <!-- Screen 1: arrival -->
+  <section class="screen screen--welcome is-active" data-screen="welcome" aria-labelledby="welcome-title">
+    <div class="breath" aria-hidden="true">
+      <span class="breath__ring"></span>
+      <span class="breath__ring breath__ring--outer"></span>
+    </div>
+    <p class="eyebrow">Surah 1 · Seven verses</p>
+    <h1 id="welcome-title" class="welcome__arabic" lang="ar" dir="rtl">الفاتحة</h1>
+    <p class="welcome__english">The Opening</p>
+    <p class="welcome__hint">Find a quiet place. Put on headphones.<br>Breathe in with the light… and out.</p>
+    <button class="btn btn--primary" type="button" data-action="begin">Begin softly</button>
+  </section>
+
+  <!-- Screen 2: the verse room -->
+  <main class="screen screen--room" data-screen="room" aria-label="Surah Al-Fatiha">
+    <header class="topbar">
+      <button class="icon-btn" type="button" data-action="home" aria-label="Back to start">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <nav class="modes" aria-label="Learning mode">
+        <button type="button" class="mode is-active" data-mode="listen" aria-pressed="true">Listen</button>
+        <button type="button" class="mode" data-mode="learn" aria-pressed="false">Learn</button>
+        <button type="button" class="mode" data-mode="memorise" aria-pressed="false">Memorise</button>
+      </nav>
+      <button class="icon-btn" type="button" data-action="ambience" aria-pressed="false" aria-label="Soft rain ambience">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15a4 4 0 0 1 .6-7.95A5 5 0 0 1 17 8a3.5 3.5 0 0 1 0 7z"/><path d="M9 18l-1 2M13 18l-1 2M17 18l-1 2"/></svg>
+      </button>
+    </header>
+
+    <ol class="stars" aria-label="Verse progress"></ol>
+
+    <article class="verse" aria-live="polite">
+      <p class="verse__number" aria-hidden="true"></p>
+      <p class="verse__arabic" lang="ar" dir="rtl"></p>
+      <p class="verse__translation"></p>
+      <p class="verse__mode-hint"></p>
+    </article>
+
+    <footer class="controls">
+      <button class="icon-btn" type="button" data-action="prev" aria-label="Previous verse">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div class="controls__centre">
+        <button class="play" type="button" data-action="play" aria-label="Play this verse word by word">
+          <svg class="play__icon play__icon--play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
+          <svg class="play__icon play__icon--pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+        </button>
+        <div class="pace" role="group" aria-label="Recitation pace">
+          <button type="button" class="pace__opt is-active" data-pace="slow" aria-pressed="true">Word by word</button>
+          <button type="button" class="pace__opt" data-pace="flow" aria-pressed="false">Full verse</button>
+        </div>
+      </div>
+      <button class="icon-btn" type="button" data-action="next" aria-label="Next verse">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </footer>
+
+    <p class="reflection" aria-live="polite"></p>
+  </main>
+
+  <!-- Word detail sheet -->
+  <dialog class="sheet" aria-labelledby="sheet-word">
+    <form method="dialog" class="sheet__close-form">
+      <button class="sheet__close" aria-label="Close">×</button>
+    </form>
+    <p id="sheet-word" class="sheet__arabic" lang="ar" dir="rtl"></p>
+    <p class="sheet__translit"></p>
+    <p class="sheet__meaning"></p>
+    <dl class="sheet__facts">
+      <div><dt>Root letters</dt><dd class="sheet__root" lang="ar" dir="rtl"></dd></div>
+      <div><dt>Appears in</dt><dd class="sheet__place"></dd></div>
+    </dl>
+    <button class="btn btn--ghost" type="button" data-action="hear-word">Hear it gently</button>
+  </dialog>
+
+  <audio class="reciter" preload="none"></audio>
+
+  <script src="data/fatiha.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
