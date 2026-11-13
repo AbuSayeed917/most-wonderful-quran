@@ -71,7 +71,6 @@
     sweep: $(".sweep"),
     verseNav: $(".dock__verses"),
     nextVerse: $('[data-action="next"]'),
-    speed: $('[data-action="speed"]'),
     soundLabel: $("[data-sound-label]"),
     tajweedQuick: $('[data-action="tajweed-quick"]'),
     cue: $(".cue"),
@@ -80,7 +79,6 @@
     play: $('[data-action="play"]'),
     ring: $(".play__ring-fill"),
     repeat: $('[data-action="repeat"]'),
-    tajweedToggle: $('[data-action="tajweed"]'),
     soundMenu: $('[data-action="soundmenu"]'),
     soundPanel: $(".sound-panel"),
     haptics: $('[data-action="haptics"]'),
@@ -103,11 +101,6 @@
 
   const dom = { track: null, stops: [], inners: [], nows: [], counts: [], sceneFrames: [], verseButtons: [], legendItems: [] };
 
-  const SPEEDS = [
-    { rate: 1, label: "1×", name: "normal" },
-    { rate: 0.75, label: "¾×", name: "slower" },
-    { rate: 1.25, label: "1¼×", name: "faster" }
-  ];
   const SCAPE_LABELS = { night: "Night", rain: "Rain", stream: "Stream", off: "Silent" };
 
   // One audio element per verse so the next verse can buffer while this one plays.
@@ -129,7 +122,6 @@
     isTajweedOn: false,
     isRepeatOn: false,
     isHapticsOn: true,
-    speedIndex: 0,
     isPlaying: false,
     playbackId: 0,
     arrival: Promise.resolve(true),
@@ -693,7 +685,7 @@
     if (!state.isPlaying) return;
     immerseTimer = setTimeout(() => {
       const isPanelOpen = !ui.soundPanel.hidden;
-      const hasFocusInChrome = document.activeElement && document.activeElement.closest(".topbar, .dock, .learnbar");
+      const hasFocusInChrome = document.activeElement && document.activeElement.closest(".topbar, .dock");
       if (state.isPlaying && !isPanelOpen && !hasFocusInChrome) ui.room.classList.add("is-immersed");
     }, IMMERSE_AFTER_MS);
   }
@@ -753,8 +745,6 @@
       clip.addEventListener("ended", onEnded);
       clip.addEventListener("error", onError);
       clip.currentTime = 0;
-      // Timings are read from currentTime, so the highlight stays in step at any speed.
-      clip.playbackRate = SPEEDS[state.speedIndex].rate;
       clip.play()
         .then(() => {
           voice.fadeIn();
@@ -964,17 +954,7 @@
   function toggleTajweed() {
     state.isTajweedOn = !state.isTajweedOn;
     ui.room.dataset.tajweed = state.isTajweedOn ? "on" : "off";
-    ui.tajweedToggle.setAttribute("aria-pressed", String(state.isTajweedOn));
     ui.tajweedQuick.setAttribute("aria-pressed", String(state.isTajweedOn));
-  }
-
-  function cycleSpeed() {
-    state.speedIndex = (state.speedIndex + 1) % SPEEDS.length;
-    const speed = SPEEDS[state.speedIndex];
-    ui.speed.querySelector(".tool__value").textContent = speed.label;
-    ui.speed.setAttribute("aria-label", `Recitation speed: ${speed.name}`);
-    ui.speed.setAttribute("aria-pressed", String(speed.rate !== 1));
-    verseClips.forEach((clip) => { clip.playbackRate = speed.rate; });
   }
 
   function toggleRepeat() {
@@ -994,6 +974,8 @@
     const label = document.querySelector(`[data-scape="${choice}"]`).textContent;
     ui.soundMenu.setAttribute("aria-label", `Soundscape: ${label.toLowerCase()}`);
     ui.soundLabel.textContent = SCAPE_LABELS[choice];
+    ui.soundMenu.dataset.currentScape = choice;
+    setSoundPanelOpen(false);
     if (choice === "off") {
       sound.setEnabled(false);
       return;
@@ -1125,10 +1107,8 @@
     $('[data-action="replay"]').addEventListener("click", replayVerse);
     $('[data-action="prev"]').addEventListener("click", () => glideTo(state.stop - 1));
     ui.nextVerse.addEventListener("click", () => glideTo(state.stop + 1));
-    ui.speed.addEventListener("click", cycleSpeed);
     ui.tajweedQuick.addEventListener("click", toggleTajweed);
     ui.repeat.addEventListener("click", toggleRepeat);
-    ui.tajweedToggle.addEventListener("click", toggleTajweed);
     $('[data-action="quiz"]').addEventListener("click", openQuiz);
     $('[data-action="quiz-again"]').addEventListener("click", openQuiz);
     ui.quiz.addEventListener("close", () => { state.quiz = null; });
