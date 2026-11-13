@@ -9,7 +9,8 @@ We begin with **Surah Al-Fatiha** (The Opening).
 - **Listen** — each word is recited on its own, glowing gold as it is spoken, with a gentle breath between words. Switch to *Full verse* to hear the whole ayah flowing. Listen mode drifts into the next verse by itself.
 - **Learn** — every word shows its meaning beneath it. Tap a word for its transliteration, root letters and to hear it again.
 - **Memorise** — the words are veiled. Recite from the heart, then tap a word to check yourself.
-- **Soft rain** — optional ambience generated in the browser (no music).
+- **A journey from night to dawn** — scroll, swipe or use the arrow keys to glide from ayah to ayah. Each glide is a slow eased movement, and painted scenes crossfade with parallax and gentle living details: a flickering lantern, shimmering water, turning rays of light and a glowing sun.
+- **ASMR soundscape** — a soft typing tick as each word appears, over a very light night ambience (a breeze and distant crickets that fade as dawn arrives). It is all synthesised in the browser, with no music. Toggle it with the moon button.
 
 ## Run it
 

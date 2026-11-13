@@ -12,7 +12,9 @@
 </head>
 <body>
   <div class="scenes" aria-hidden="true"></div>
+  <div class="haze" aria-hidden="true"></div>
   <canvas class="motes" aria-hidden="true"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
 
   <!-- Screen 1: arrival -->
   <section class="screen screen--welcome is-active" data-screen="welcome" aria-labelledby="welcome-title">
@@ -27,10 +29,12 @@
     <button class="btn btn--primary" type="button" data-action="begin">Begin softly</button>
   </section>
 
-  <!-- Screen 2: the verse room -->
-  <main class="screen screen--room" data-screen="room" aria-label="Surah Al-Fatiha">
+  <!-- Screen 2: the journey from night to dawn -->
+  <main class="screen screen--room" data-screen="room" data-mode="listen" aria-label="Surah Al-Fatiha">
+    <div class="journey" tabindex="0" aria-label="Verses. Scroll to move from one verse to the next."></div>
+
     <header class="topbar">
-      <button class="icon-btn" type="button" data-action="home" aria-label="Back to start">
+      <button class="glass-btn" type="button" data-action="home" aria-label="Back to start">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
       </button>
       <nav class="modes" aria-label="Learning mode">
@@ -38,40 +42,31 @@
         <button type="button" class="mode" data-mode="learn" aria-pressed="false">Learn</button>
         <button type="button" class="mode" data-mode="memorise" aria-pressed="false">Memorise</button>
       </nav>
-      <button class="icon-btn" type="button" data-action="ambience" aria-pressed="false" aria-label="Soft rain ambience">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15a4 4 0 0 1 .6-7.95A5 5 0 0 1 17 8a3.5 3.5 0 0 1 0 7z"/><path d="M9 18l-1 2M13 18l-1 2M17 18l-1 2"/></svg>
+      <button class="glass-btn" type="button" data-action="sound" aria-pressed="true" aria-label="Night soundscape and typing sounds">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
       </button>
     </header>
 
-    <ol class="stars" aria-label="Verse progress"></ol>
-
-    <article class="verse" aria-live="polite">
-      <p class="verse__number" aria-hidden="true"></p>
-      <p class="verse__arabic" lang="ar" dir="rtl"></p>
-      <p class="verse__translation"></p>
-      <p class="verse__mode-hint"></p>
-    </article>
+    <nav class="rail" aria-label="Jump to verse">
+      <span class="rail__track" aria-hidden="true"></span>
+      <span class="rail__fill" aria-hidden="true"></span>
+    </nav>
 
     <footer class="controls">
-      <button class="icon-btn" type="button" data-action="prev" aria-label="Previous verse">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      <button class="play" type="button" data-action="play" aria-label="Play this verse">
+        <svg class="play__icon play__icon--play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
+        <svg class="play__icon play__icon--pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
       </button>
-      <div class="controls__centre">
-        <button class="play" type="button" data-action="play" aria-label="Play this verse word by word">
-          <svg class="play__icon play__icon--play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
-          <svg class="play__icon play__icon--pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
-        </button>
-        <div class="pace" role="group" aria-label="Recitation pace">
-          <button type="button" class="pace__opt is-active" data-pace="slow" aria-pressed="true">Word by word</button>
-          <button type="button" class="pace__opt" data-pace="flow" aria-pressed="false">Full verse</button>
-        </div>
+      <div class="pace" role="group" aria-label="Recitation pace">
+        <button type="button" class="pace__opt is-active" data-pace="slow" aria-pressed="true">Word by word</button>
+        <button type="button" class="pace__opt" data-pace="flow" aria-pressed="false">Full verse</button>
       </div>
-      <button class="icon-btn" type="button" data-action="next" aria-label="Next verse">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-      </button>
+      <p class="hint" aria-live="polite"></p>
+      <div class="cue" aria-hidden="true">
+        <span class="cue__line"></span>
+        <span>Scroll gently</span>
+      </div>
     </footer>
-
-    <p class="reflection" aria-live="polite"></p>
   </main>
 
   <!-- Word detail sheet -->
@@ -92,6 +87,7 @@
   <audio class="reciter" preload="none"></audio>
 
   <script src="data/fatiha.js"></script>
+  <script src="sound.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
