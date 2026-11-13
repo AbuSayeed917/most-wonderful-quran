@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Most Wonderful Quran</title>
   <meta name="description" content="Learn the Quran slowly, softly, word by word. Starting with Surah Al-Fatiha.">
+  <link rel="icon" href="data:,">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -18,20 +19,25 @@
 
   <!-- Screen 1: arrival -->
   <section class="screen screen--welcome is-active" data-screen="welcome" aria-labelledby="welcome-title">
-    <div class="breath" aria-hidden="true">
-      <span class="breath__ring"></span>
-      <span class="breath__ring breath__ring--outer"></span>
+    <div class="welcome__scene" aria-hidden="true">
+      <img src="images/ayah-1.jpg" alt="" width="720" height="1280">
+      <span class="welcome__lantern"></span>
     </div>
-    <p class="eyebrow">Surah 1 · Seven verses</p>
-    <h1 id="welcome-title" class="welcome__arabic" lang="ar" dir="rtl">الفاتحة</h1>
-    <p class="welcome__english">The Opening</p>
-    <p class="welcome__hint">Find a quiet place. Put on headphones.<br>Breathe in with the light… and out.</p>
-    <button class="btn btn--primary" type="button" data-action="begin">Begin softly</button>
+    <div class="welcome__content">
+      <p class="eyebrow">Surah 1 · Seven verses</p>
+      <h1 id="welcome-title" class="welcome__arabic" lang="ar" dir="rtl">الفاتحة</h1>
+      <p class="welcome__english">The Opening</p>
+      <button class="btn btn--primary" type="button" data-action="begin">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
+        Begin
+      </button>
+      <p class="welcome__note">Best with headphones, somewhere quiet.</p>
+    </div>
   </section>
 
   <!-- Screen 2: the journey from night to dawn -->
   <main class="screen screen--room" data-screen="room" data-mode="listen" aria-label="Surah Al-Fatiha">
-    <div class="journey" tabindex="0" aria-label="Verses. Scroll to move from one verse to the next."></div>
+    <div class="journey" tabindex="0" aria-label="Verses. Scroll, swipe or use the arrow keys to move between verses."></div>
 
     <header class="topbar">
       <button class="glass-btn" type="button" data-action="home" aria-label="Back to start">
@@ -42,9 +48,7 @@
         <button type="button" class="mode" data-mode="learn" aria-pressed="false">Learn</button>
         <button type="button" class="mode" data-mode="memorise" aria-pressed="false">Memorise</button>
       </nav>
-      <button class="glass-btn" type="button" data-action="sound" aria-pressed="true" aria-label="Night soundscape and typing sounds">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
-      </button>
+      <span class="topbar__spacer" aria-hidden="true"></span>
     </header>
 
     <nav class="rail" aria-label="Jump to verse">
@@ -52,21 +56,28 @@
       <span class="rail__fill" aria-hidden="true"></span>
     </nav>
 
-    <footer class="controls">
-      <button class="play" type="button" data-action="play" aria-label="Play this verse">
+    <div class="cue" aria-hidden="true">
+      <span class="cue__line"></span>
+      <span>Press play, or scroll gently</span>
+    </div>
+
+    <footer class="dock">
+      <button class="glass-btn glass-btn--bare" type="button" data-action="replay" aria-label="Recite this verse again">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M4 4v5h5"/></svg>
+      </button>
+      <button class="play" type="button" data-action="play" aria-label="Play along with the recitation">
+        <svg class="play__ring" viewBox="0 0 64 64" aria-hidden="true">
+          <circle class="play__ring-track" cx="32" cy="32" r="30"/>
+          <circle class="play__ring-fill" cx="32" cy="32" r="30"/>
+        </svg>
         <svg class="play__icon play__icon--play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
         <svg class="play__icon play__icon--pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
       </button>
-      <div class="pace" role="group" aria-label="Recitation pace">
-        <button type="button" class="pace__opt is-active" data-pace="slow" aria-pressed="true">Word by word</button>
-        <button type="button" class="pace__opt" data-pace="flow" aria-pressed="false">Full verse</button>
-      </div>
-      <p class="hint" aria-live="polite"></p>
-      <div class="cue" aria-hidden="true">
-        <span class="cue__line"></span>
-        <span>Scroll gently</span>
-      </div>
+      <button class="glass-btn glass-btn--bare" type="button" data-action="sound" aria-pressed="true" aria-label="Night soundscape and typing sounds">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+      </button>
     </footer>
+    <p class="status" role="status" aria-live="polite"></p>
   </main>
 
   <!-- Word detail sheet -->
@@ -84,7 +95,7 @@
     <button class="btn btn--ghost" type="button" data-action="hear-word">Hear it gently</button>
   </dialog>
 
-  <audio class="reciter" preload="none"></audio>
+  <audio class="word-voice" preload="none"></audio>
 
   <script src="data/fatiha.js"></script>
   <script src="sound.js"></script>

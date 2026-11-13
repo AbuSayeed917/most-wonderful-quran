@@ -5,28 +5,26 @@
   if (!surah || !Array.isArray(surah.ayahs) || surah.ayahs.length === 0) {
     throw new Error("Surah data failed to load: expected window.SURAH_FATIHA with ayahs.");
   }
+  if (surah.ayahs.some((ayah) => !Array.isArray(ayah.timings) || ayah.timings.length !== ayah.words.length)) {
+    throw new Error("Surah data is missing word timings: every ayah needs one [start, end] per word.");
+  }
   const sound = window.Soundscape;
   if (!sound) throw new Error("Soundscape failed to load: expected window.Soundscape from sound.js.");
 
   const LAST_AYAH = surah.ayahs.length - 1;
   const LAST_STOP = surah.ayahs.length; // the closing "Ameen" screen sits after the last ayah
-  const GLIDE_MS = 1700;
+  const GLIDE_MS = 1050;
   const WHEEL_THRESHOLD = 6;
   const SWIPE_THRESHOLD = 36;
-  const WHEEL_SETTLE_MS = 220;
-  const FIRST_WORD_DELAY_MS = 900;
-  const WORD_ARRIVAL_MS = 440;
-  const GLINT_MS = 750;
-  const WORD_GAP_MS = 420;
-  const VERSE_GAP_MS = 1600;
+  const WHEEL_SETTLE_MS = 200;
+  const FIRST_WORD_DELAY_MS = 260;
+  const WORD_ARRIVAL_MS = 110;
+  const GLINT_MS = 420;
+  const VERSE_GAP_MS = 380;
+  const NOW_FADE_MS = 140;
+  const RING_LENGTH = 188.5;
   const ARABIC_DIGITS = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
   const isReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  const MODE_HINTS = {
-    listen: "Press play and let each word arrive. Tap a word to hear it alone.",
-    learn: "Tap a word to open its meaning and its root.",
-    memorise: "The words are veiled. Recite from the heart, then tap a word to check."
-  };
 
   // Each painting gets the living details that match what is drawn in it.
   const SCENE_EFFECTS = {
@@ -46,10 +44,11 @@
     rail: $(".rail"),
     railFill: $(".rail__fill"),
     cue: $(".cue"),
-    hint: $(".hint"),
+    status: $(".status"),
     play: $('[data-action="play"]'),
+    ring: $(".play__ring-fill"),
     soundToggle: $('[data-action="sound"]'),
-    audio: $(".reciter"),
+    wordVoice: $(".word-voice"),
     sheet: $(".sheet"),
     sheetArabic: $(".sheet__arabic"),
     sheetTranslit: $(".sheet__translit"),
@@ -58,7 +57,15 @@
     sheetPlace: $(".sheet__place")
   };
 
-  const dom = { track: null, stops: [], inners: [], sceneFrames: [], railDots: [] };
+  const dom = { track: null, stops: [], inners: [], nows: [], sceneFrames: [], railDots: [] };
+
+  // One audio element per verse so the next verse can buffer while this one plays.
+  const verseClips = surah.ayahs.map((ayah) => {
+    const clip = new Audio();
+    clip.preload = "none";
+    clip.src = `https://verses.quran.com/Alafasy/mp3/${pad3(surah.number)}${pad3(ayah.number)}.mp3`;
+    return clip;
+  });
 
   const state = {
     position: 0,
@@ -67,36 +74,30 @@
     isGliding: false,
     wheelQuietUntil: 0,
     mode: "listen",
-    pace: "slow",
     isPlaying: false,
     playbackId: 0,
+    arrival: Promise.resolve(true),
     arrivalId: 0,
-    isAutoAdvancing: false,
+    spokenIndex: null,
     sheetWordIndex: null
   };
 
   /* ---------- Pure helpers ---------- */
 
-  const pad3 = (n) => String(n).padStart(3, "0");
+  function pad3(n) { return String(n).padStart(3, "0"); }
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const toArabicNumber = (n) => String(n).split("").map((d) => ARABIC_DIGITS[Number(d)]).join("");
   const wordAudioUrl = (ayah, wordNumber) =>
     `https://audio.qurancdn.com/wbw/${pad3(surah.number)}_${pad3(ayah)}_${pad3(wordNumber)}.mp3`;
-  const verseAudioUrl = (ayah) =>
-    `https://everyayah.com/data/Alafasy_128kbps/${pad3(surah.number)}${pad3(ayah)}.mp3`;
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  // Slow at both ends so a glide leaves and lands like a held breath.
   const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-  // Reciters linger on long words, so letter count is a fair proxy for where each word sits in the verse audio.
-  function buildWordTimeline(words) {
-    const lengths = words.map((w) => w.arabic.length);
-    const total = lengths.reduce((sum, len) => sum + len, 0);
-    let running = 0;
-    return lengths.map((len) => {
-      running += len;
-      return running / total;
-    });
+  function findSpokenWord(timings, ms) {
+    const index = timings.findIndex(([start, end]) => ms >= start && ms < end);
+    if (index !== -1) return index;
+    // In the tiny gaps between words, keep the previous word lit rather than flickering off.
+    const before = timings.filter(([start]) => start <= ms).length - 1;
+    return before >= 0 ? before : null;
   }
 
   /* ---------- Building the journey ---------- */
@@ -160,99 +161,96 @@
     dom.sceneFrames = frames;
   }
 
+  function element(tag, className, text) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
   function buildWord(word, index) {
-    const button = document.createElement("button");
+    const button = element("button", "word");
     button.type = "button";
-    button.className = "word";
-    button.dataset.index = String(index);
     button.setAttribute("aria-label", `${word.transliteration}, ${word.meaning}`);
-    const arabic = document.createElement("span");
-    arabic.textContent = word.arabic;
-    const gloss = document.createElement("span");
-    gloss.className = "word__gloss";
-    gloss.textContent = word.meaning;
-    button.append(arabic, gloss);
+    button.append(element("span", "", word.arabic), element("span", "word__gloss", word.meaning));
     button.addEventListener("click", () => handleWordTap(index));
     return button;
   }
 
   function buildAyahSection(ayah) {
-    const section = document.createElement("section");
-    section.className = ayah.words.length > 6 ? "ayah ayah--long" : "ayah";
+    const section = element("section", ayah.words.length > 6 ? "ayah ayah--long" : "ayah");
     section.setAttribute("aria-label", `Verse ${ayah.number}`);
+    const inner = element("div", "ayah__inner");
 
-    const inner = document.createElement("div");
-    inner.className = "ayah__inner";
-
-    const ornament = document.createElement("div");
-    ornament.className = "ornament";
+    const meta = element("p", "ayah__meta");
+    const ornament = element("span", "ornament");
     ornament.setAttribute("aria-hidden", "true");
-    const glyph = document.createElement("span");
-    glyph.textContent = toArabicNumber(ayah.number);
-    ornament.append(glyph);
+    ornament.append(element("span", "", toArabicNumber(ayah.number)));
+    meta.append(ornament, element("span", "", `Ayah ${ayah.number} of ${surah.ayahs.length}`));
 
-    const arabic = document.createElement("p");
-    arabic.className = "ayah__arabic";
+    const arabic = element("p", "ayah__arabic");
     arabic.lang = "ar";
     arabic.dir = "rtl";
     arabic.append(...ayah.words.map(buildWord));
 
-    const translation = document.createElement("p");
-    translation.className = "ayah__translation";
-    translation.textContent = ayah.translation;
+    const now = element("p", "now");
+    now.setAttribute("aria-hidden", "true");
+    now.append(element("span", "now__translit"), element("span", "now__dash"), element("span", "now__meaning"));
 
-    const reflection = document.createElement("p");
-    reflection.className = "ayah__reflection";
-    reflection.textContent = ayah.reflection;
-
-    inner.append(ornament, arabic, translation, reflection);
+    inner.append(
+      meta,
+      arabic,
+      now,
+      element("p", "ayah__translation", ayah.translation),
+      element("p", "ayah__reflection", ayah.reflection)
+    );
     section.append(inner);
-    return { section, inner };
+    return { section, inner, now };
   }
 
   function buildAmeenSection() {
-    const section = document.createElement("section");
-    section.className = "ameen";
+    const section = element("section", "ameen");
     section.setAttribute("aria-label", "Ameen");
-    const inner = document.createElement("div");
-    inner.className = "ayah__inner";
-    const arabic = document.createElement("p");
-    arabic.className = "ameen__arabic";
+    const inner = element("div", "ayah__inner ameen__inner");
+    const arabic = element("p", "ameen__arabic", "آمِين");
     arabic.lang = "ar";
     arabic.dir = "rtl";
-    arabic.textContent = "آمِين";
-    const line = document.createElement("p");
-    line.className = "ameen__line";
-    line.textContent = "The day has opened.";
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "btn btn--primary";
-    button.textContent = "Recite it from the heart";
-    button.addEventListener("click", () => {
+
+    const again = element("button", "btn btn--ghost", "Listen again");
+    again.type = "button";
+    again.addEventListener("click", () => {
+      glideTo(0, true);
+      startPlayAlong();
+    });
+    const memorise = element("button", "btn btn--primary", "Recite from the heart");
+    memorise.type = "button";
+    memorise.addEventListener("click", () => {
       setMode("memorise");
       glideTo(0);
     });
-    inner.append(arabic, line, button);
+    const actions = element("div", "ameen__actions");
+    actions.append(again, memorise);
+
+    inner.append(arabic, element("p", "ameen__line", "The day has opened."), actions);
     section.append(inner);
-    return { section, inner };
+    return { section, inner, now: null };
   }
 
   function buildJourney() {
-    const track = document.createElement("div");
-    track.className = "journey__track";
+    const track = element("div", "journey__track");
     const built = [...surah.ayahs.map(buildAyahSection), buildAmeenSection()];
     track.append(...built.map((b) => b.section));
     ui.journey.replaceChildren(track);
     dom.track = track;
     dom.stops = built.map((b) => b.section);
     dom.inners = built.map((b) => b.inner);
+    dom.nows = built.map((b) => b.now);
   }
 
   function buildRail() {
     dom.railDots = surah.ayahs.map((ayah, index) => {
-      const dot = document.createElement("button");
+      const dot = element("button", "rail__dot");
       dot.type = "button";
-      dot.className = "rail__dot";
       dot.style.setProperty("--i", String(index));
       dot.setAttribute("aria-label", `Go to verse ${ayah.number}`);
       dot.addEventListener("click", () => glideTo(index));
@@ -284,27 +282,29 @@
         inner.style.opacity = "0";
         return;
       }
-      inner.style.opacity = clamp(1 - distance * 1.4, 0, 1).toFixed(4);
+      inner.style.opacity = clamp(1 - distance * 1.5, 0, 1).toFixed(4);
       if (isReducedMotion) return;
       // Text lags behind the page a little, so it seems to float rather than slide.
-      const lag = offset * height * 0.22;
-      const scale = 1 - Math.min(distance, 1) * 0.05;
+      const lag = offset * height * 0.2;
+      const scale = 1 - Math.min(distance, 1) * 0.04;
       inner.style.transform = `translate3d(0, ${lag.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`;
     });
 
     ui.railFill.style.transform = `scaleY(${clamp(position / LAST_AYAH, 0, 1).toFixed(4)})`;
-    ui.cue.style.opacity = clamp(1 - position * 2, 0, 1).toFixed(3);
+    ui.cue.style.opacity = state.isPlaying ? "0" : clamp(1 - position * 3, 0, 1).toFixed(3);
     sound.setNightLevel(1 - scenePosition / 4);
   }
 
   /* ---------- Gliding between verses ---------- */
 
-  function glideTo(stop) {
+  // `isPlayAlong` marks glides the recitation makes itself; any other glide is the learner taking over.
+  function glideTo(stop, isPlayAlong = false) {
     const target = clamp(stop, 0, LAST_STOP);
+    if (!isPlayAlong) stopPlayback();
     if (target === state.stop && !state.isGliding) return;
 
     const from = state.position;
-    const duration = isReducedMotion ? 1 : GLIDE_MS * Math.min(1.6, Math.max(0.8, Math.abs(target - from)));
+    const duration = isReducedMotion ? 1 : GLIDE_MS * Math.min(1.5, Math.max(0.85, Math.abs(target - from)));
     const startedAt = performance.now();
     state.stop = target;
     state.isGliding = true;
@@ -346,7 +346,6 @@
 
   function bindGestures() {
     ui.journey.addEventListener("wheel", handleWheel, { passive: false });
-
     let touchStartY = null;
     ui.journey.addEventListener("touchstart", (event) => {
       touchStartY = event.touches[0].clientY;
@@ -359,7 +358,6 @@
       if (Math.abs(deltaY) < SWIPE_THRESHOLD) return;
       glideTo(state.stop + Math.sign(deltaY));
     });
-
     window.addEventListener("resize", () => applyPosition(state.position));
   }
 
@@ -369,8 +367,10 @@
     return Array.from(dom.stops[index].querySelectorAll(".word"));
   }
 
-  function resetWords(index) {
+  function resetAyah(index) {
+    dom.stops[index].classList.remove("is-recited");
     wordElements(index).forEach((el) => el.classList.remove("is-arrived", "is-glinting", "is-heard", "is-spoken"));
+    dom.nows[index].classList.remove("is-showing");
   }
 
   async function arriveWords(index) {
@@ -389,123 +389,145 @@
   }
 
   function activateAyah(index) {
-    if (!state.isAutoAdvancing) stopPlayback();
     dom.stops.forEach((section, i) => {
       section.classList.toggle("is-current", i === index);
-      if (i !== index) resetWords(i);
+      if (i !== index && i <= LAST_AYAH) resetAyah(i);
     });
     state.ayahIndex = index;
+    state.spokenIndex = null;
     dom.railDots.forEach((dot, i) => {
       dot.setAttribute("aria-current", i === index ? "step" : "false");
       dot.classList.toggle("is-passed", i < index);
     });
-    arriveWords(index);
+    state.arrival = arriveWords(index);
   }
 
-  /* ---------- Recitation ---------- */
+  /* ---------- Play-along ---------- */
 
-  function highlightWord(activeIndex) {
+  function showNow(index, wordIndex) {
+    const now = dom.nows[index];
+    if (wordIndex === null) {
+      now.classList.remove("is-showing");
+      return;
+    }
+    const word = surah.ayahs[index].words[wordIndex];
+    now.classList.remove("is-showing");
+    // A brief dip before the new word so the explanation breathes instead of snapping.
+    setTimeout(() => {
+      now.querySelector(".now__translit").textContent = word.transliteration;
+      now.querySelector(".now__meaning").textContent = word.meaning;
+      now.classList.add("is-showing");
+    }, NOW_FADE_MS);
+  }
+
+  function highlightWord(wordIndex) {
+    if (wordIndex === state.spokenIndex) return;
+    state.spokenIndex = wordIndex;
     wordElements().forEach((el, index) => {
       el.classList.add("is-arrived");
-      el.classList.toggle("is-spoken", index === activeIndex);
-      el.classList.toggle("is-heard", activeIndex !== null && index < activeIndex);
+      el.classList.toggle("is-spoken", index === wordIndex);
+      el.classList.toggle("is-heard", wordIndex !== null && index < wordIndex);
     });
+    showNow(state.ayahIndex, wordIndex);
+  }
+
+  function setRing(progress) {
+    ui.ring.style.strokeDashoffset = (RING_LENGTH * (1 - clamp(progress, 0, 1))).toFixed(2);
   }
 
   function setPlaying(isPlaying) {
     state.isPlaying = isPlaying;
     ui.play.classList.toggle("is-playing", isPlaying);
-    ui.play.setAttribute("aria-label", isPlaying ? "Pause" : "Play this verse");
+    ui.play.setAttribute("aria-label", isPlaying ? "Pause" : "Play along with the recitation");
+    applyPosition(state.position);
   }
 
-  function showAudioError(error) {
-    console.error("Recitation audio failed:", error);
-    ui.hint.textContent = "The reciter couldn't be reached. Check your connection and try again.";
-  }
-
-  function playClip(url) {
-    return new Promise((resolve, reject) => {
-      const audio = ui.audio;
-      const cleanUp = () => {
-        audio.removeEventListener("ended", onEnded);
-        audio.removeEventListener("error", onError);
-      };
-      const onEnded = () => { cleanUp(); resolve(); };
-      const onError = () => { cleanUp(); reject(new Error(`Could not load ${url}`)); };
-      audio.addEventListener("ended", onEnded);
-      audio.addEventListener("error", onError);
-      audio.src = url;
-      audio.play().catch((error) => { cleanUp(); reject(error); });
-    });
+  function showError(message, error) {
+    console.error(message, error);
+    ui.status.textContent = "The reciter couldn't be reached. Check your connection and try again.";
   }
 
   function stopPlayback() {
     state.playbackId += 1;
-    state.isAutoAdvancing = false;
-    ui.audio.pause();
-    ui.audio.ontimeupdate = null;
+    verseClips.forEach((clip) => clip.pause());
+    ui.wordVoice.pause();
     setPlaying(false);
   }
 
-  async function playVerseWordByWord(playbackId) {
-    const ayah = surah.ayahs[state.ayahIndex];
-    for (let index = 0; index < ayah.words.length; index += 1) {
-      if (playbackId !== state.playbackId) return false;
-      highlightWord(index);
-      await playClip(wordAudioUrl(ayah.number, index + 1));
-      await wait(WORD_GAP_MS);
-    }
-    return playbackId === state.playbackId;
+  // Follows the reciter with Quran.com's word timings, checked every frame for a tight, smooth highlight.
+  function reciteVerse(index, playbackId) {
+    return new Promise((resolve, reject) => {
+      const clip = verseClips[index];
+      const timings = surah.ayahs[index].timings;
+      const next = verseClips[index + 1];
+      if (next) {
+        next.preload = "auto";
+        next.load();
+      }
+
+      let frame = null;
+      const cleanUp = () => {
+        cancelAnimationFrame(frame);
+        clip.removeEventListener("ended", onEnded);
+        clip.removeEventListener("error", onError);
+      };
+      const follow = () => {
+        if (playbackId !== state.playbackId) {
+          cleanUp();
+          resolve(false);
+          return;
+        }
+        highlightWord(findSpokenWord(timings, clip.currentTime * 1000));
+        if (clip.duration) setRing((index + clip.currentTime / clip.duration) / surah.ayahs.length);
+        frame = requestAnimationFrame(follow);
+      };
+      const onEnded = () => { cleanUp(); resolve(playbackId === state.playbackId); };
+      const onError = () => { cleanUp(); reject(new Error(`Could not load ${clip.src}`)); };
+
+      clip.addEventListener("ended", onEnded);
+      clip.addEventListener("error", onError);
+      clip.currentTime = 0;
+      clip.play()
+        .then(() => { frame = requestAnimationFrame(follow); })
+        .catch((error) => { cleanUp(); reject(error); });
+    });
   }
 
-  async function playVerseFlowing(playbackId) {
-    const ayah = surah.ayahs[state.ayahIndex];
-    const timeline = buildWordTimeline(ayah.words);
-    ui.audio.ontimeupdate = () => {
-      if (!ui.audio.duration) return;
-      const progress = ui.audio.currentTime / ui.audio.duration;
-      const index = timeline.findIndex((end) => progress <= end);
-      highlightWord(index === -1 ? timeline.length - 1 : index);
-    };
-    await playClip(verseAudioUrl(ayah.number));
-    ui.audio.ontimeupdate = null;
-    return playbackId === state.playbackId;
-  }
-
-  async function startPlayback() {
+  async function startPlayAlong() {
     stopPlayback();
-    state.arrivalId += 1;
+    ui.status.textContent = "";
     const playbackId = state.playbackId;
     setPlaying(true);
 
     try {
-      const isFinished = state.pace === "slow"
-        ? await playVerseWordByWord(playbackId)
-        : await playVerseFlowing(playbackId);
-      if (!isFinished) return;
+      for (let index = state.ayahIndex; index <= LAST_AYAH; index += 1) {
+        if (index !== state.ayahIndex) glideTo(index, true);
+        await state.arrival;
+        if (playbackId !== state.playbackId) return;
 
-      highlightWord(null);
-      wordElements().forEach((el) => el.classList.add("is-heard"));
-
-      if (state.mode !== "listen" || state.ayahIndex === LAST_AYAH) {
-        setPlaying(false);
-        return;
+        const isFinished = await reciteVerse(index, playbackId);
+        if (!isFinished) return;
+        highlightWord(null);
+        wordElements(index).forEach((el) => el.classList.add("is-heard"));
+        dom.stops[index].classList.add("is-recited");
+        await wait(VERSE_GAP_MS);
+        if (playbackId !== state.playbackId) return;
       }
-      await wait(VERSE_GAP_MS);
-      if (playbackId !== state.playbackId) return;
-
-      // Drift on to the next verse, let its words arrive, then keep reciting.
-      const next = state.ayahIndex + 1;
-      state.isAutoAdvancing = true;
-      glideTo(next);
-      await wait(GLIDE_MS * 0.6 + FIRST_WORD_DELAY_MS + surah.ayahs[next].words.length * WORD_ARRIVAL_MS);
-      if (playbackId !== state.playbackId || state.ayahIndex !== next) return;
-      startPlayback();
+      setRing(1);
+      glideTo(LAST_STOP, true);
+      setPlaying(false);
     } catch (error) {
       if (playbackId !== state.playbackId) return;
       setPlaying(false);
-      showAudioError(error);
+      showError("Recitation audio failed:", error);
     }
+  }
+
+  function replayVerse() {
+    resetAyah(state.ayahIndex);
+    wordElements().forEach((el) => el.classList.add("is-arrived"));
+    state.arrival = Promise.resolve(true);
+    startPlayAlong();
   }
 
   async function playSingleWord(wordIndex) {
@@ -514,20 +536,19 @@
     const ayah = surah.ayahs[state.ayahIndex];
     highlightWord(wordIndex);
     try {
-      await playClip(wordAudioUrl(ayah.number, wordIndex + 1));
+      ui.wordVoice.src = wordAudioUrl(ayah.number, wordIndex + 1);
+      await ui.wordVoice.play();
+      await new Promise((resolve) => ui.wordVoice.addEventListener("ended", resolve, { once: true }));
       if (playbackId === state.playbackId) highlightWord(null);
     } catch (error) {
-      if (playbackId === state.playbackId) showAudioError(error);
+      if (playbackId === state.playbackId) showError("Word audio failed:", error);
     }
   }
 
   /* ---------- Interactions ---------- */
 
   function countOccurrences(arabic) {
-    return surah.ayahs.reduce(
-      (count, ayah) => count + ayah.words.filter((w) => w.arabic === arabic).length,
-      0
-    );
+    return surah.ayahs.reduce((count, ayah) => count + ayah.words.filter((w) => w.arabic === arabic).length, 0);
   }
 
   function openWordSheet(wordIndex) {
@@ -549,15 +570,13 @@
       openWordSheet(wordIndex);
       return;
     }
-    if (state.mode === "memorise") {
-      wordElements()[wordIndex].classList.add("is-revealed");
-    }
+    if (state.mode === "memorise") wordElements()[wordIndex].classList.add("is-revealed");
     playSingleWord(wordIndex);
   }
 
   function setMode(mode) {
-    if (!MODE_HINTS[mode]) throw new Error(`Unknown mode: ${mode}`);
-    stopPlayback();
+    const modes = ["listen", "learn", "memorise"];
+    if (!modes.includes(mode)) throw new Error(`Unknown mode: ${mode}`);
     state.mode = mode;
     ui.room.dataset.mode = mode;
     document.querySelectorAll("button[data-mode]").forEach((btn) => {
@@ -566,17 +585,6 @@
       btn.setAttribute("aria-pressed", String(isActive));
     });
     document.querySelectorAll(".word.is-revealed").forEach((el) => el.classList.remove("is-revealed"));
-    ui.hint.textContent = MODE_HINTS[mode];
-  }
-
-  function setPace(pace) {
-    stopPlayback();
-    state.pace = pace;
-    document.querySelectorAll("[data-pace]").forEach((btn) => {
-      const isActive = btn.dataset.pace === pace;
-      btn.classList.toggle("is-active", isActive);
-      btn.setAttribute("aria-pressed", String(isActive));
-    });
   }
 
   function toggleSound() {
@@ -594,17 +602,30 @@
     const isRoomOpen = ui.room.classList.contains("is-active");
     if (!isRoomOpen || ui.sheet.open) return;
     const isOnControl = event.target instanceof HTMLButtonElement;
-    const forwardKeys = ["ArrowDown", "PageDown", "ArrowLeft"];
-    const backKeys = ["ArrowUp", "PageUp", "ArrowRight"];
     // Arabic reads right to left, so the left arrow also moves forward through the surah.
-    if (forwardKeys.includes(event.key) || (event.key === " " && !isOnControl)) {
+    if (["ArrowDown", "PageDown", "ArrowLeft"].includes(event.key)) {
       event.preventDefault();
       glideTo(state.stop + 1);
+      return;
     }
-    if (backKeys.includes(event.key)) {
+    if (["ArrowUp", "PageUp", "ArrowRight"].includes(event.key)) {
       event.preventDefault();
       glideTo(state.stop - 1);
+      return;
     }
+    if (event.key === " " && !isOnControl) {
+      event.preventDefault();
+      togglePlay();
+    }
+  }
+
+  function togglePlay() {
+    if (state.isPlaying) {
+      stopPlayback();
+      return;
+    }
+    if (state.stop > LAST_AYAH) glideTo(0, true);
+    startPlayAlong();
   }
 
   /* ---------- Rising gold dust ---------- */
@@ -616,8 +637,8 @@
     const ctx = sprite.getContext("2d");
     const glow = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
     glow.addColorStop(0, "rgba(255, 236, 196, 1)");
-    glow.addColorStop(0.25, "rgba(246, 217, 160, 0.8)");
-    glow.addColorStop(1, "rgba(246, 217, 160, 0)");
+    glow.addColorStop(0.25, "rgba(244, 213, 154, 0.8)");
+    glow.addColorStop(1, "rgba(244, 213, 154, 0)");
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, 32, 32);
     return sprite;
@@ -643,7 +664,7 @@
         x: Math.random() * width,
         y: Math.random() * height,
         size: Math.random() * 9 + 4,
-        speed: Math.random() * 0.012 + 0.006,
+        speed: Math.random() * 0.014 + 0.007,
         phase: Math.random() * Math.PI * 2
       }));
     }
@@ -654,7 +675,7 @@
         const rise = isReducedMotion ? 0 : time * m.speed;
         const y = ((m.y - rise) % (height + 40) + height + 40) % (height + 40) - 20;
         const sway = isReducedMotion ? 0 : Math.sin(time / 3800 + m.phase) * 14;
-        ctx.globalAlpha = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(time / 1700 + m.phase));
+        ctx.globalAlpha = 0.22 + 0.33 * (0.5 + 0.5 * Math.sin(time / 1700 + m.phase));
         ctx.drawImage(sprite, m.x + sway - m.size / 2, y - m.size / 2, m.size, m.size);
       });
       ctx.globalAlpha = 1;
@@ -682,16 +703,14 @@
       state.arrivalId += 1;
       showScreen("welcome");
     });
-    ui.play.addEventListener("click", () => (state.isPlaying ? stopPlayback() : startPlayback()));
+    ui.play.addEventListener("click", togglePlay);
+    $('[data-action="replay"]').addEventListener("click", replayVerse);
     ui.soundToggle.addEventListener("click", toggleSound);
     $('[data-action="hear-word"]').addEventListener("click", () => {
       if (state.sheetWordIndex !== null) playSingleWord(state.sheetWordIndex);
     });
     document.querySelectorAll("button[data-mode]").forEach((btn) =>
       btn.addEventListener("click", () => setMode(btn.dataset.mode))
-    );
-    document.querySelectorAll("[data-pace]").forEach((btn) =>
-      btn.addEventListener("click", () => setPace(btn.dataset.pace))
     );
     document.addEventListener("keydown", handleKeydown);
   }
@@ -701,6 +720,5 @@
   buildRail();
   bindGestures();
   bindEvents();
-  ui.hint.textContent = MODE_HINTS[state.mode];
   startMotes();
 })();

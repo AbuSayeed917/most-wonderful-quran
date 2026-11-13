@@ -2,6 +2,8 @@
  * Surah Al-Fatiha, word by word.
  * Word indices match Quran.com's word-by-word audio (audio.qurancdn.com/wbw/SSS_AAA_WWW.mp3),
  * so every word here can be heard on its own.
+ * `timings` are [startMs, endMs] for each word in Mishary Alafasy's verse audio
+ * (verses.quran.com/Alafasy/mp3/SSSAAA.mp3), from Quran.com's recitation segments.
  */
 window.SURAH_FATIHA = {
   number: 1,
@@ -12,6 +14,7 @@ window.SURAH_FATIHA = {
   ayahs: [
     {
       number: 1,
+      timings: [[60, 610], [620, 1310], [1320, 2450], [2460, 5970]],
       translation: "In the name of Allah, the Most Gracious, the Most Merciful.",
       reflection: "Every good beginning starts here. Before the first step, we lean on His name.",
       words: [
@@ -23,6 +26,7 @@ window.SURAH_FATIHA = {
     },
     {
       number: 2,
+      timings: [[80, 960], [970, 1800], [1810, 2460], [2470, 5140]],
       translation: "All praise is for Allah, Lord of all the worlds.",
       reflection: "Praise, not just thanks. Thanks answers a gift; praise is owed even before the gift.",
       words: [
@@ -34,6 +38,7 @@ window.SURAH_FATIHA = {
     },
     {
       number: 3,
+      timings: [[40, 1230], [1240, 4160]],
       translation: "The Most Gracious, the Most Merciful.",
       reflection: "Mercy is named twice in three verses. Lordship is wrapped in gentleness.",
       words: [
@@ -43,6 +48,7 @@ window.SURAH_FATIHA = {
     },
     {
       number: 4,
+      timings: [[60, 840], [850, 1400], [1410, 4280]],
       translation: "Master of the Day of Judgment.",
       reflection: "Mercy, then accountability. Hope and awe held together, like two wings.",
       words: [
@@ -53,6 +59,7 @@ window.SURAH_FATIHA = {
     },
     {
       number: 5,
+      timings: [[30, 970], [980, 1710], [1720, 2870], [2880, 6290]],
       translation: "You alone we worship, and You alone we ask for help.",
       reflection: "Here the voice turns. We stop speaking about Him and begin speaking to Him.",
       words: [
@@ -64,6 +71,7 @@ window.SURAH_FATIHA = {
     },
     {
       number: 6,
+      timings: [[30, 670], [680, 1630], [1640, 5120]],
       translation: "Guide us to the straight path.",
       reflection: "The one request of the surah. Of everything we could ask for, we ask for guidance.",
       words: [
@@ -74,6 +82,7 @@ window.SURAH_FATIHA = {
     },
     {
       number: 7,
+      timings: [[30, 740], [750, 1700], [1710, 2620], [2630, 3590], [3600, 4210], [4220, 5290], [5300, 6320], [6330, 6630], [6640, 12320]],
       translation: "The path of those You have blessed, not of those who earned anger, nor of those who went astray.",
       reflection: "A path is known by the people who walked it. We ask to walk with the blessed.",
       words: [
