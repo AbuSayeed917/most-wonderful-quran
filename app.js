@@ -284,30 +284,56 @@
     const inner = element("div", "ayah__inner");
 
     const meta = element("p", "ayah__meta");
-    const ornament = element("span", "ornament");
-    ornament.setAttribute("aria-hidden", "true");
-    ornament.append(element("span", "", toArabicNumber(ayah.number)));
     const count = element("span", "ayah__count");
-    meta.append(ornament, element("span", "", `Ayah ${ayah.number} of ${surah.ayahs.length}`), count);
+    meta.append(element("span", "", `Ayah ${ayah.number} of ${surah.ayahs.length}`), count);
 
     const arabic = element("p", "ayah__arabic");
     arabic.lang = "ar";
     arabic.dir = "rtl";
-    arabic.append(...ayah.words.map((word, index) => buildWord(word, index, ayah.tajweed[index])));
+    // The end-of-ayah sign (U+06DD) encloses the verse number that follows it, as on a mushaf page.
+    const endMark = element("span", "ayah__end", `۝${toArabicNumber(ayah.number)}`);
+    endMark.setAttribute("aria-hidden", "true");
+    arabic.append(...ayah.words.map((word, index) => buildWord(word, index, ayah.tajweed[index])), endMark);
 
     const now = element("p", "now");
     now.setAttribute("aria-hidden", "true");
     now.append(element("span", "now__translit"), element("span", "now__dash"), element("span", "now__meaning"));
 
-    inner.append(
-      meta,
-      arabic,
-      now,
-      element("p", "ayah__translation", ayah.translation),
-      element("p", "ayah__reflection", ayah.reflection)
-    );
+    const panel = element("div", "panel");
+    panel.append(...["tl", "tr", "bl", "br"].map((corner) => {
+      const star = element("span", `panel__corner panel__corner--${corner}`);
+      star.setAttribute("aria-hidden", "true");
+      return star;
+    }));
+    panel.append(arabic, now, buildDivider(), element("p", "ayah__translation", ayah.translation));
+
+    if (ayah.number === 1) inner.append(buildSurahHeader());
+    inner.append(meta, panel, element("p", "ayah__reflection", ayah.reflection));
     section.append(inner);
     return { section, inner, now, count };
+  }
+
+  function buildDivider() {
+    const divider = element("span", "divider");
+    divider.setAttribute("aria-hidden", "true");
+    divider.append(element("i", "divider__line"), element("i", "divider__rosette"), element("i", "divider__line"));
+    return divider;
+  }
+
+  // The illuminated cartouche that opens a surah in a printed mushaf, drawn as a simple geometric frame.
+  function buildSurahHeader() {
+    const header = element("div", "surah-head");
+    header.innerHTML = `
+      <svg class="surah-head__frame" viewBox="0 0 320 60" aria-hidden="true" preserveAspectRatio="none">
+        <path d="M4 30 L30 4 H290 L316 30 L290 56 H30 Z" />
+        <path d="M14 30 L34 10 H286 L306 30 L286 50 H34 Z" />
+        <path class="surah-head__gem" d="M4 30 l6 -6 l6 6 l-6 6 Z M304 30 l6 -6 l6 6 l-6 6 Z" />
+      </svg>`;
+    const name = element("h2", "surah-head__name", "سُورَةُ ٱلْفَاتِحَةِ");
+    name.lang = "ar";
+    name.dir = "rtl";
+    header.append(name);
+    return header;
   }
 
   function buildAmeenSection() {
