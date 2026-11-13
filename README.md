@@ -27,3 +27,7 @@ Then open http://localhost:4719.
 - Full verses: Mishary Rashid Alafasy via [EveryAyah](https://everyayah.com).
 
 Translations and reflections in `data/fatiha.js` are plain-English renderings written for learners.
+
+## Scenes
+
+Each ayah has its own painted scene, moving from night to dawn as the surah opens the day. They were generated with [Magnific](https://www.magnific.com) and live in `images/`. They are landscapes and architecture only: no figures and no text.

@@ -20,6 +20,7 @@
   const ui = {
     screens: document.querySelectorAll("[data-screen]"),
     room: $('[data-screen="room"]'),
+    scenes: $(".scenes"),
     stars: $(".stars"),
     verseNumber: $(".verse__number"),
     verseArabic: $(".verse__arabic"),
@@ -83,6 +84,26 @@
     ui.stars.replaceChildren(...items);
   }
 
+  function renderScenes() {
+    const images = surah.ayahs.map((ayah) => {
+      const img = document.createElement("img");
+      img.className = "scene";
+      img.src = `images/ayah-${ayah.number}.jpg`;
+      img.alt = "";
+      img.width = 720;
+      img.height = 1280;
+      img.decoding = "async";
+      return img;
+    });
+    ui.scenes.replaceChildren(...images);
+  }
+
+  function updateScene() {
+    ui.scenes.querySelectorAll(".scene").forEach((img, index) => {
+      img.classList.toggle("is-active", index === state.ayahIndex);
+    });
+  }
+
   function updateStars() {
     ui.stars.querySelectorAll(".star").forEach((star, index) => {
       star.classList.toggle("is-current", index === state.ayahIndex);
@@ -128,6 +149,7 @@
     ui.reflection.textContent = ayah.reflection;
     ui.modeHint.textContent = MODE_HINTS[state.mode];
     updateStars();
+    updateScene();
   }
 
   function wordElements() {
@@ -318,6 +340,7 @@
 
   function showScreen(name) {
     ui.screens.forEach((screen) => screen.classList.toggle("is-active", screen.dataset.screen === name));
+    ui.scenes.classList.toggle("is-visible", name === "room");
   }
 
   /* ---------- Soft rain (generated, no music) ---------- */
@@ -442,6 +465,7 @@
   }
 
   ui.room.dataset.mode = state.mode;
+  renderScenes();
   renderStars();
   bindEvents();
   startMotes();
