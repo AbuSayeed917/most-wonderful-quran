@@ -1378,3 +1378,20 @@ button:focus-visible, .journey:focus-visible, input:focus-visible { outline: 2px
 }
 .panel__corner { width: var(--corner); height: var(--corner); }
 .legend { max-width: 100%; }
+
+/* The last word and its end-of-ayah sign stay together on one line. */
+.word-group { display: inline-flex; align-items: center; gap: 0 0.28em; white-space: nowrap; }
+[data-mode="learn"] .word-group { align-items: flex-start; }
+
+/* The live "word · meaning" line only takes space while reciting, so a verse at rest has no empty band. */
+.screen--room:not(.is-reciting) .now { display: none; }
+.panel .now { margin: 2px 0 10px; }
+.divider { margin-top: 6px; }
+
+/* Wider panel on larger screens so short verses stay on one line with their end sign. */
+@media (min-width: 900px) {
+  .panel { max-width: 960px; }
+  .ayah__inner { max-width: 980px; }
+}
+/* Balance the lines of longer verses instead of leaving one word alone on the last line. */
+.ayah__arabic { text-wrap: balance; }

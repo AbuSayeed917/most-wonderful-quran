@@ -307,7 +307,11 @@
     // The end-of-ayah sign (U+06DD) encloses the verse number that follows it, as on a mushaf page.
     const endMark = element("span", "ayah__end", `۝${toArabicNumber(ayah.number)}`);
     endMark.setAttribute("aria-hidden", "true");
-    arabic.append(...ayah.words.map((word, index) => buildWord(word, index, ayah.tajweed[index])), endMark);
+    const words = ayah.words.map((word, index) => buildWord(word, index, ayah.tajweed[index]));
+    // The last word and the end-of-ayah sign never separate, so the sign can't wrap onto a line alone.
+    const lastGroup = element("span", "word-group");
+    lastGroup.append(words[words.length - 1], endMark);
+    arabic.append(...words.slice(0, -1), lastGroup);
 
     const now = element("p", "now");
     now.setAttribute("aria-hidden", "true");
