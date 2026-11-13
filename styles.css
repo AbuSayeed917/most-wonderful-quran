@@ -1421,3 +1421,65 @@ button:focus-visible, .journey:focus-visible, input:focus-visible { outline: 2px
 
 /* Quick taps on controls shouldn't leave text-selection boxes behind. */
 .topbar, .dock, .sound-panel { -webkit-user-select: none; user-select: none; }
+
+/* ---------- Tablet-height fixes ---------- */
+
+/* Size the Arabic by width and height together, so a two-line verse never outgrows the screen. */
+.ayah__arabic { font-size: clamp(2.3rem, min(9vw, 7.6vh), 4.6rem); }
+.ayah--long .ayah__arabic { font-size: clamp(1.9rem, min(6.6vw, 5.6vh), 3.4rem); }
+
+/* Deep Amiri descenders need room before the divider. */
+.ayah__arabic { padding-bottom: 0.28em; }
+
+/* The surah name gets enough height that its lower vowel marks clear the cartouche's inner line. */
+.surah-head { height: 62px; }
+.surah-head__name { padding-top: 0; line-height: 1.7; font-size: 1.3rem; }
+
+/* The dock's play button and verse numbers make the controls clear; the floating hint only crowded the verse. */
+.cue { display: none; }
+
+/* ---------- Stock motion overlays (Pexels, filmed on black) ---------- */
+/* Screen blending drops the black, so only the moving light, dust, mist or rain shows over the painting. */
+.motion {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.4s var(--ease-soft);
+}
+.motion.is-visible { opacity: 1; }
+.motion__clip {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  mix-blend-mode: screen;
+  opacity: 0;
+}
+.motion__clip--mist { filter: blur(3px) contrast(1.1); transform: scale(1.1); }
+/* The same dust clip, warmed to gold, reads as glowing motes or fireflies at night. */
+.motion__clip--gold { filter: sepia(1) saturate(2.2) brightness(1.2); transform: scaleX(-1); }
+.motion__clip--rain { transition: opacity 2s var(--ease-soft); }
+
+@media (prefers-reduced-motion: reduce) { .motion { display: none; } }
+
+.ameen__note {
+  margin: -6px 0 6px;
+  max-width: 34ch;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  color: rgba(243, 237, 226, 0.82);
+  text-shadow: 0 1px 10px rgba(5, 6, 15, 0.8);
+}
+
+/* Letter-spacing adds space after the last letter too, so pad the left by the same amount to centre the label. */
+.ayah__meta { display: inline-flex; padding: 6px 14px 6px calc(14px + 0.26em); }
+.ayah__count:empty { display: none; }
+/* The dust clip was cleaned of large soft blobs, which also dimmed it; brighten it back in the browser. */
+.motion__clip--dust { filter: brightness(1.9); }
+.motion__clip--gold { filter: sepia(1) saturate(2.2) brightness(2.1); }
+/* The mist clip's background was crushed to true black (so it can't grey the painting); lift the wisps back up. */
+.motion__clip--mist { filter: blur(3px) brightness(1.7); }

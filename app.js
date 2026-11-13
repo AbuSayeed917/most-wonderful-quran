@@ -101,6 +101,18 @@
 
   const dom = { track: null, stops: [], inners: [], nows: [], counts: [], sceneFrames: [], verseButtons: [], legendItems: [] };
 
+  // How strongly each motion clip shows over each ayah's painting (0 to 1), blended as you glide between them.
+  const MOTION_LEVELS = [
+    { gold: 0.55, dust: 0, mist: 0.12 },    // 1 · Milky Way: warm motes like lantern sparks
+    { gold: 0.6, dust: 0, mist: 0.22 },     // 2 · Oasis: firefly-like glow over mist on the water
+    { gold: 0, dust: 0.18, mist: 0.38 },    // 3 · Violet dunes: mist rolling between the dunes
+    { gold: 0, dust: 0.12, mist: 0.45 },    // 4 · Storm clouds: heavier mist, solemn
+    { gold: 0.2, dust: 0.55, mist: 0.1 },   // 5 · Arch: dust floating in the light
+    { gold: 0.15, dust: 0.35, mist: 0.2 },  // 6 · Path: dust lifting off the path
+    { gold: 0.25, dust: 0.3, mist: 0.08 }   // 7 · Garden: soft morning motes
+  ];
+  const RAIN_LEVEL = 0.5;
+
   const SCAPE_LABELS = { night: "Night", rain: "Rain", stream: "Stream", off: "Silent" };
 
   // One audio element per verse so the next verse can buffer while this one plays.
@@ -380,7 +392,9 @@
     const actions = element("div", "ameen__actions");
     actions.append(again, test, memorise);
 
-    inner.append(arabic, element("p", "ameen__line", "The day has opened."), actions);
+    // Āmīn is said after Al-Fatiha but is not one of its verses; say so, so no one mistakes it for Quran.
+    const note = element("p", "ameen__note", "Said after Al-Fatiha, not part of the surah. It means “O Allah, answer us.”");
+    inner.append(arabic, note, element("p", "ameen__line", "The day has opened."), actions);
     section.append(inner);
     return { section, inner, now: null, count: null };
   }
@@ -471,6 +485,37 @@
     ui.cue.style.opacity = state.isPlaying ? "0" : clamp(1 - position * 3, 0, 1).toFixed(3);
     sound.setNightLevel(1 - scenePosition / 4);
     ui.root.style.setProperty("--dawn", clamp((scenePosition - 2) / 4, 0, 1).toFixed(3));
+    applyMotion(scenePosition);
+  }
+
+  /* ---------- Stock motion overlays ---------- */
+
+  const motionClips = Object.fromEntries(
+    [...document.querySelectorAll(".motion__clip")].map((clip) => [clip.dataset.clip, clip])
+  );
+
+  // A clip nobody can see shouldn't be decoding: play it only while it's visible.
+  function setClipLevel(clip, level) {
+    clip.style.opacity = level.toFixed(3);
+    const shouldPlay = level > 0.01 && !isReducedMotion;
+    if (shouldPlay && clip.paused) {
+      clip.play().catch((error) => console.error("Motion clip could not play:", error));
+    }
+    if (!shouldPlay && !clip.paused) clip.pause();
+  }
+
+  function applyMotion(scenePosition) {
+    const index = Math.floor(scenePosition);
+    const blend = scenePosition - index;
+    const from = MOTION_LEVELS[index];
+    const to = MOTION_LEVELS[Math.min(index + 1, LAST_AYAH)];
+    ["gold", "dust", "mist"].forEach((name) => {
+      setClipLevel(motionClips[name], from[name] + (to[name] - from[name]) * blend);
+    });
+  }
+
+  function setRainMotion(isRaining) {
+    setClipLevel(motionClips.rain, isRaining ? RAIN_LEVEL : 0);
   }
 
   /* ---------- Gliding between verses ---------- */
@@ -979,6 +1024,7 @@
     ui.soundMenu.setAttribute("aria-label", `Soundscape: ${label.toLowerCase()}`);
     ui.soundLabel.textContent = SCAPE_LABELS[choice];
     ui.soundMenu.dataset.currentScape = choice;
+    setRainMotion(choice === "rain");
     setSoundPanelOpen(false);
     if (choice === "off") {
       sound.setEnabled(false);
@@ -991,6 +1037,7 @@
   function showScreen(name) {
     ui.screens.forEach((screen) => screen.classList.toggle("is-active", screen.dataset.screen === name));
     ui.scenes.classList.toggle("is-visible", name === "room");
+    document.querySelector(".motion").classList.toggle("is-visible", name === "room");
   }
 
   function togglePlay() {

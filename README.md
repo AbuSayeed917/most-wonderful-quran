@@ -35,3 +35,11 @@ Translations and reflections in `data/fatiha.js` are plain-English renderings wr
 ## Scenes
 
 Each ayah has its own painted scene, moving from night to dawn as the surah opens the day. They were generated with [Magnific](https://www.magnific.com) and live in `images/`. They are landscapes and architecture only: no figures and no text.
+
+## Motion
+
+Soft overlays of drifting mist, floating dust and rain are free stock clips from [Pexels](https://www.pexels.com) (free to use, no attribution required), filmed on black and screen-blended over the paintings. They are trimmed to seamless loops, cleaned (large out-of-focus blobs removed, near-blacks crushed) and compressed into `images/motion/`:
+
+- `mist.mp4`: from Pexels video 4320605
+- `dust.mp4`: from Pexels video 9665236 (also tinted gold in CSS for the night scenes)
+- `rain.mp4`: from Pexels video 36344044 (shown with the Rain soundscape)
