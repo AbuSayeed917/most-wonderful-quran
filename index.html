@@ -77,38 +77,57 @@
     </div>
     <ul class="legend" aria-label="Tajweed colour guide"></ul>
 
-    <nav class="rail" aria-label="Jump to verse">
-      <span class="rail__track" aria-hidden="true"></span>
-      <span class="rail__fill" aria-hidden="true"></span>
-    </nav>
-
     <div class="cue" aria-hidden="true">
       <span class="cue__line"></span>
       <span>Press play, or scroll gently</span>
     </div>
 
     <footer class="dock">
-      <button class="glass-btn glass-btn--bare" type="button" data-action="repeat" aria-pressed="false" aria-label="Repeat each verse three times">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></svg>
-        <span class="dock__badge" aria-hidden="true">3</span>
-      </button>
-      <button class="glass-btn glass-btn--bare" type="button" data-action="replay" aria-label="Recite this verse again">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M4 4v5h5"/></svg>
-      </button>
-      <button class="play" type="button" data-action="play" aria-label="Play along with the recitation">
-        <svg class="play__ring" viewBox="0 0 64 64" aria-hidden="true">
-          <circle class="play__ring-track" cx="32" cy="32" r="30"/>
-          <circle class="play__ring-fill" cx="32" cy="32" r="30"/>
-        </svg>
-        <svg class="play__icon play__icon--play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
-        <svg class="play__icon play__icon--pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
-      </button>
-      <button class="glass-btn glass-btn--bare" type="button" data-action="soundmenu" aria-expanded="false" aria-controls="sound-panel" aria-label="Soundscape: night">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
-      </button>
-      <button class="glass-btn glass-btn--bare" type="button" data-action="quiz" aria-label="Test yourself">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9.5"/></svg>
-      </button>
+      <!-- Row 1: every verse one tap away. Verse buttons are added by app.js between the arrows. -->
+      <nav class="dock__verses" aria-label="Choose a verse">
+        <button class="verse-step" type="button" data-action="prev" aria-label="Previous verse">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <button class="verse-step" type="button" data-action="next" aria-label="Next verse">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </nav>
+
+      <!-- Row 2: labelled controls around the play button. -->
+      <div class="dock__row">
+        <button class="tool" type="button" data-action="repeat" aria-pressed="false" aria-label="Repeat each verse three times">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></svg>
+          <span class="tool__label">Repeat ×3</span>
+        </button>
+        <button class="tool" type="button" data-action="speed" aria-label="Recitation speed: normal">
+          <span class="tool__value" aria-hidden="true">1×</span>
+          <span class="tool__label">Speed</span>
+        </button>
+        <button class="tool" type="button" data-action="replay" aria-label="Recite this verse again">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M4 4v5h5"/></svg>
+          <span class="tool__label">Again</span>
+        </button>
+        <button class="play" type="button" data-action="play" aria-label="Play along with the recitation">
+          <svg class="play__ring" viewBox="0 0 64 64" aria-hidden="true">
+            <circle class="play__ring-track" cx="32" cy="32" r="30"/>
+            <circle class="play__ring-fill" cx="32" cy="32" r="30"/>
+          </svg>
+          <svg class="play__icon play__icon--play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
+          <svg class="play__icon play__icon--pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+        </button>
+        <button class="tool" type="button" data-action="soundmenu" aria-expanded="false" aria-controls="sound-panel" aria-label="Soundscape: desert night">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+          <span class="tool__label" data-sound-label>Night</span>
+        </button>
+        <button class="tool" type="button" data-action="tajweed-quick" aria-pressed="false" aria-label="Tajweed colours">
+          <span class="tool__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="tool__label">Tajweed</span>
+        </button>
+        <button class="tool" type="button" data-action="quiz" aria-label="Test yourself">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9.5"/></svg>
+          <span class="tool__label">Quiz</span>
+        </button>
+      </div>
     </footer>
 
     <div class="sound-panel" id="sound-panel" hidden>

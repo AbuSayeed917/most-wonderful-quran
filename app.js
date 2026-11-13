@@ -69,8 +69,11 @@
     scenes: $(".scenes"),
     voiceLight: $(".voice-light"),
     sweep: $(".sweep"),
-    rail: $(".rail"),
-    railFill: $(".rail__fill"),
+    verseNav: $(".dock__verses"),
+    nextVerse: $('[data-action="next"]'),
+    speed: $('[data-action="speed"]'),
+    soundLabel: $("[data-sound-label]"),
+    tajweedQuick: $('[data-action="tajweed-quick"]'),
     cue: $(".cue"),
     status: $(".status"),
     legend: $(".legend"),
@@ -98,7 +101,14 @@
     quizScore: $(".quiz__score")
   };
 
-  const dom = { track: null, stops: [], inners: [], nows: [], counts: [], sceneFrames: [], railDots: [], legendItems: [] };
+  const dom = { track: null, stops: [], inners: [], nows: [], counts: [], sceneFrames: [], verseButtons: [], legendItems: [] };
+
+  const SPEEDS = [
+    { rate: 1, label: "1×", name: "normal" },
+    { rate: 0.75, label: "¾×", name: "slower" },
+    { rate: 1.25, label: "1¼×", name: "faster" }
+  ];
+  const SCAPE_LABELS = { night: "Night", rain: "Rain", stream: "Stream", off: "Silent" };
 
   // One audio element per verse so the next verse can buffer while this one plays.
   const verseClips = surah.ayahs.map((ayah) => {
@@ -119,6 +129,7 @@
     isTajweedOn: false,
     isRepeatOn: false,
     isHapticsOn: true,
+    speedIndex: 0,
     isPlaying: false,
     playbackId: 0,
     arrival: Promise.resolve(true),
@@ -391,15 +402,14 @@
   }
 
   function buildRail() {
-    dom.railDots = surah.ayahs.map((ayah, index) => {
-      const dot = element("button", "rail__dot");
-      dot.type = "button";
-      dot.style.setProperty("--i", String(index));
-      dot.setAttribute("aria-label", `Go to verse ${ayah.number}`);
-      dot.addEventListener("click", () => glideTo(index));
-      return dot;
+    dom.verseButtons = surah.ayahs.map((ayah, index) => {
+      const button = element("button", "verse-pill", toArabicNumber(ayah.number));
+      button.type = "button";
+      button.setAttribute("aria-label", `Go to verse ${ayah.number}`);
+      button.addEventListener("click", () => glideTo(index));
+      return button;
     });
-    ui.rail.append(...dom.railDots);
+    ui.verseNav.insertBefore(element("span", "verse-pills"), ui.nextVerse).append(...dom.verseButtons);
   }
 
   function buildLegend() {
@@ -462,7 +472,6 @@
       inner.style.transform = `translate3d(0, ${lag.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`;
     });
 
-    ui.railFill.style.transform = `scaleY(${clamp(position / LAST_AYAH, 0, 1).toFixed(4)})`;
     ui.cue.style.opacity = state.isPlaying ? "0" : clamp(1 - position * 3, 0, 1).toFixed(3);
     sound.setNightLevel(1 - scenePosition / 4);
     ui.root.style.setProperty("--dawn", clamp((scenePosition - 2) / 4, 0, 1).toFixed(3));
@@ -615,7 +624,7 @@
     });
     state.ayahIndex = index;
     state.spokenIndex = null;
-    dom.railDots.forEach((dot, i) => {
+    dom.verseButtons.forEach((dot, i) => {
       dot.setAttribute("aria-current", i === index ? "step" : "false");
       dot.classList.toggle("is-passed", i < index);
     });
@@ -744,6 +753,8 @@
       clip.addEventListener("ended", onEnded);
       clip.addEventListener("error", onError);
       clip.currentTime = 0;
+      // Timings are read from currentTime, so the highlight stays in step at any speed.
+      clip.playbackRate = SPEEDS[state.speedIndex].rate;
       clip.play()
         .then(() => {
           voice.fadeIn();
@@ -954,6 +965,16 @@
     state.isTajweedOn = !state.isTajweedOn;
     ui.room.dataset.tajweed = state.isTajweedOn ? "on" : "off";
     ui.tajweedToggle.setAttribute("aria-pressed", String(state.isTajweedOn));
+    ui.tajweedQuick.setAttribute("aria-pressed", String(state.isTajweedOn));
+  }
+
+  function cycleSpeed() {
+    state.speedIndex = (state.speedIndex + 1) % SPEEDS.length;
+    const speed = SPEEDS[state.speedIndex];
+    ui.speed.querySelector(".tool__value").textContent = speed.label;
+    ui.speed.setAttribute("aria-label", `Recitation speed: ${speed.name}`);
+    ui.speed.setAttribute("aria-pressed", String(speed.rate !== 1));
+    verseClips.forEach((clip) => { clip.playbackRate = speed.rate; });
   }
 
   function toggleRepeat() {
@@ -972,6 +993,7 @@
     });
     const label = document.querySelector(`[data-scape="${choice}"]`).textContent;
     ui.soundMenu.setAttribute("aria-label", `Soundscape: ${label.toLowerCase()}`);
+    ui.soundLabel.textContent = SCAPE_LABELS[choice];
     if (choice === "off") {
       sound.setEnabled(false);
       return;
@@ -1101,6 +1123,10 @@
     });
     ui.play.addEventListener("click", togglePlay);
     $('[data-action="replay"]').addEventListener("click", replayVerse);
+    $('[data-action="prev"]').addEventListener("click", () => glideTo(state.stop - 1));
+    ui.nextVerse.addEventListener("click", () => glideTo(state.stop + 1));
+    ui.speed.addEventListener("click", cycleSpeed);
+    ui.tajweedQuick.addEventListener("click", toggleTajweed);
     ui.repeat.addEventListener("click", toggleRepeat);
     ui.tajweedToggle.addEventListener("click", toggleTajweed);
     $('[data-action="quiz"]').addEventListener("click", openQuiz);
