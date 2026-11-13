@@ -1395,3 +1395,29 @@ button:focus-visible, .journey:focus-visible, input:focus-visible { outline: 2px
 }
 /* Balance the lines of longer verses instead of leaving one word alone on the last line. */
 .ayah__arabic { text-wrap: balance; }
+
+/* The verse label sits on a small dark pill so it reads on bright skies as well as night ones. */
+.ayah__meta {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(24, 19, 22, 0.55);
+  color: rgba(243, 237, 226, 0.92);
+  font-size: 0.68rem;
+  letter-spacing: 0.26em;
+}
+
+/*
+ * The sound menu is centred with auto margins rather than a translate, so its rise-in animation
+ * (which animates transform) can't knock it sideways.
+ */
+.sound-panel {
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  transform: none;
+  animation: panel-rise 0.3s var(--ease-out);
+}
+@keyframes panel-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* Quick taps on controls shouldn't leave text-selection boxes behind. */
+.topbar, .dock, .sound-panel { -webkit-user-select: none; user-select: none; }
