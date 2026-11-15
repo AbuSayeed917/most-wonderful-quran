@@ -196,6 +196,8 @@
 
   function vibrate(ms) {
     if (!state.isHapticsOn || typeof navigator.vibrate !== "function") return;
+    // Browsers refuse vibration until the visitor has interacted with the page; don't ask before then.
+    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
     navigator.vibrate(ms);
   }
 
