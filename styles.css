@@ -1483,3 +1483,29 @@ button:focus-visible, .journey:focus-visible, input:focus-visible { outline: 2px
 .motion__clip--gold { filter: sepia(1) saturate(2.2) brightness(2.1); }
 /* The mist clip's background was crushed to true black (so it can't grey the painting); lift the wisps back up. */
 .motion__clip--mist { filter: blur(3px) brightness(1.7); }
+
+/* ---------- Performance: keep every glide frame inside the 16 ms budget ---------- */
+
+/* The paper colour and grain are baked into the image files now, so no live filters on the paintings. */
+.scene__layer img, .welcome__scene img { filter: none; }
+
+/* Tint, blur and brightness are baked into the clips too; the browser only blends them. */
+.motion__clip--dust, .motion__clip--gold, .motion__clip--mist { filter: none; }
+.motion__clip--gold { transform: none; }
+
+/*
+ * No backdrop blur: during a glide the painting behind every control changes each frame, so a blur
+ * there was recomputed every frame. Matte, slightly more opaque surfaces look the same at rest.
+ */
+:root { --glass: rgba(26, 21, 25, 0.8); }
+.glass-btn, .modes, .dock, .chip, .legend li, .btn--ghost, .sound-panel, .sheet::backdrop, .quiz::backdrop {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.dock { background: rgba(26, 21, 25, 0.82); }
+
+/* Only the word being recited carries a glow; the panel gives every other word its contrast. */
+.word.is-arrived { filter: none; }
+
+/* Hint the compositor about what moves, so it keeps these on their own layers. */
+.scene, .scene__stage, .scene__layer { will-change: transform, opacity; }

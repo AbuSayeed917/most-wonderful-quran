@@ -264,7 +264,8 @@
       const frame = element("div", "scene");
       const stage = element("div", "scene__stage");
       stage.style.setProperty("--breathe", `${22 + index * 2}s`);
-      stage.append(createLayer("sky", src, effects.sky), createLayer("ground", src, effects.ground));
+      // One painting layer per scene: a second masked copy for depth doubled the GPU work on every frame.
+      stage.append(createLayer("sky", src, [...effects.sky, ...effects.ground]));
       frame.append(stage);
       return frame;
     });
@@ -496,14 +497,20 @@
     [...document.querySelectorAll(".motion__clip")].map((clip) => [clip.dataset.clip, clip])
   );
 
-  // A clip nobody can see shouldn't be decoding: play it only while it's visible.
+  // Only opacity changes during a glide: starting or stopping a video's decoder mid-glide caused 50 ms hitches.
   function setClipLevel(clip, level) {
     clip.style.opacity = level.toFixed(3);
-    const shouldPlay = level > 0.01 && !isReducedMotion;
-    if (shouldPlay && clip.paused) {
-      clip.play().catch((error) => console.error("Motion clip could not play:", error));
-    }
-    if (!shouldPlay && !clip.paused) clip.pause();
+  }
+
+  // The clips are small, so they all run while the verses are on screen and all rest on the welcome screen.
+  function setMotionRunning(isRunning) {
+    Object.values(motionClips).forEach((clip) => {
+      if (isRunning && !isReducedMotion) {
+        clip.play().catch((error) => console.error("Motion clip could not play:", error));
+        return;
+      }
+      clip.pause();
+    });
   }
 
   function applyMotion(scenePosition) {
@@ -1040,6 +1047,7 @@
     ui.screens.forEach((screen) => screen.classList.toggle("is-active", screen.dataset.screen === name));
     ui.scenes.classList.toggle("is-visible", name === "room");
     document.querySelector(".motion").classList.toggle("is-visible", name === "room");
+    setMotionRunning(name === "room");
   }
 
   function togglePlay() {
